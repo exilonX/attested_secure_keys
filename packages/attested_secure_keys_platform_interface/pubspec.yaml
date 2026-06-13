@@ -1,0 +1,31 @@
+name: attested_secure_keys_platform_interface
+description: "Common platform interface and normalized model for the attested_secure_keys plugin (hardware-backed, attestable EC P-256 keys)."
+version: 0.1.0
+homepage: https://github.com/roeid/attested_secure_keys
+repository: https://github.com/roeid/attested_secure_keys
+issue_tracker: https://github.com/roeid/attested_secure_keys/issues
+topics:
+  - security
+  - cryptography
+  - keystore
+  - attestation
+  - secure-enclave
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  plugin_platform_interface: ^2.0.2
+  crypto: ^3.0.7
+  meta: ^1.17.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  pigeon: ^27.1.0

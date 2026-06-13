@@ -1,0 +1,48 @@
+{
+  "name": "attested_secure_keys_verifier",
+  "version": "0.1.0",
+  "description": "Server-side verifier for attested_secure_keys: validates Android Keystore X.509 attestations and iOS App Attest objects against the genuine Google/Apple roots.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
+  },
+  "keywords": [
+    "attestation",
+    "android-key-attestation",
+    "app-attest",
+    "webauthn",
+    "eudi",
+    "key-attestation"
+  ],
+  "dependencies": {
+    "@peculiar/x509": "^1.14.3",
+    "asn1js": "^3.0.10",
+    "cbor-x": "^1.6.4",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,15 @@
+# Pub workspace root (Dart 3.6+). Resolves all member packages together so the
+# federated packages see each other locally without path overrides.
+# Not a publishable package.
+name: _attested_secure_keys_workspace
+publish_to: none
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+workspace:
+  - packages/attested_secure_keys
+  - packages/attested_secure_keys_platform_interface
+  - packages/attested_secure_keys_android
+  - packages/attested_secure_keys_ios
+  - packages/attested_secure_keys/example

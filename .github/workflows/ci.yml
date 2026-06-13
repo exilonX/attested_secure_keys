@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-test:
+    name: Format · Analyze · Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter --version
+      # Resolves the whole pub workspace (all federated packages + example).
+      - name: Resolve workspace
+        run: flutter pub get
+      # Format check, excluding Pigeon-generated *.g.dart files.
+      - name: Format
+        run: dart format --output=none --set-exit-if-changed $(git ls-files '*.dart' ':!*.g.dart')
+      - name: Analyze
+        run: flutter analyze
+      - name: Unit tests
+        working-directory: packages/attested_secure_keys
+        run: flutter test
+
+  build-android:
+    name: Build example (Android)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Build debug APK (compiles the Kotlin host API)
+        working-directory: packages/attested_secure_keys/example
+        run: flutter build apk --debug
+
+  build-ios:
+    name: Build example (iOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Build iOS, no codesign (compiles the Swift host API)
+        working-directory: packages/attested_secure_keys/example
+        run: flutter build ios --no-codesign

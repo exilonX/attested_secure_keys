@@ -1,0 +1,47 @@
+name: Publish to pub.dev
+
+# Tokenless automated publishing via pub.dev + GitHub OIDC.
+#
+# One-time setup (per package) on pub.dev once the repo exists:
+#   Admin → Automated publishing → Enable publishing from GitHub Actions,
+#   set the repository and a tag pattern (e.g. `v{{version}}`).
+#
+# Then publish by pushing a tag:  git tag v0.1.0 && git push origin v0.1.0
+#
+# Packages are published in federated dependency order: the platform interface
+# first, then the native implementations, then the app-facing package. Short
+# pauses give pub.dev time to index a package before a dependent one is checked.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # REQUIRED for pub.dev OIDC — do not remove.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+
+      - name: Publish attested_secure_keys_platform_interface
+        working-directory: packages/attested_secure_keys_platform_interface
+        run: flutter pub publish --force
+      - run: sleep 45
+
+      - name: Publish attested_secure_keys_android
+        working-directory: packages/attested_secure_keys_android
+        run: flutter pub publish --force
+
+      - name: Publish attested_secure_keys_ios
+        working-directory: packages/attested_secure_keys_ios
+        run: flutter pub publish --force
+      - run: sleep 45
+
+      - name: Publish attested_secure_keys
+        working-directory: packages/attested_secure_keys
+        run: flutter pub publish --force

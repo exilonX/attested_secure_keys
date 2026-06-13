@@ -1,0 +1,42 @@
+name: attested_secure_keys
+description: "Hardware-backed, attestable EC P-256 keys for Flutter — Android Keystore/StrongBox and iOS Secure Enclave, non-exportable, ES256/JOSE, with key attestation."
+version: 0.1.0
+homepage: https://github.com/roeid/attested_secure_keys
+repository: https://github.com/roeid/attested_secure_keys
+issue_tracker: https://github.com/roeid/attested_secure_keys/issues
+topics:
+  - security
+  - cryptography
+  - keystore
+  - attestation
+  - secure-enclave
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  attested_secure_keys_platform_interface: ^0.1.0
+  attested_secure_keys_android: ^0.1.0
+  attested_secure_keys_ios: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  plugin_platform_interface: ^2.0.2
+
+# App-facing federated plugin: it has no native code of its own — it endorses
+# the platform implementation packages, which the tooling pulls in via the
+# `default_package` keys below.
+flutter:
+  plugin:
+    platforms:
+      android:
+        default_package: attested_secure_keys_android
+      ios:
+        default_package: attested_secure_keys_ios

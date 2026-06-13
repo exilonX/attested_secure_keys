@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Dart/Flutter dependencies (pub workspace root).
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions used by the workflows below.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Android Gradle dependencies (e.g. androidx.biometric).
+  - package-ecosystem: "gradle"
+    directory: "/packages/attested_secure_keys_android/android"
+    schedule:
+      interval: "weekly"

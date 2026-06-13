@@ -1,0 +1,37 @@
+name: attested_secure_keys_android
+description: "Android implementation of attested_secure_keys: hardware-backed, attestable EC P-256 keys via Android Keystore / StrongBox."
+version: 0.1.0
+homepage: https://github.com/roeid/attested_secure_keys
+repository: https://github.com/roeid/attested_secure_keys
+issue_tracker: https://github.com/roeid/attested_secure_keys/issues
+topics:
+  - security
+  - cryptography
+  - keystore
+  - attestation
+  - secure-enclave
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  attested_secure_keys_platform_interface: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    implements: attested_secure_keys
+    platforms:
+      android:
+        package: ro.roeid.attested_secure_keys
+        pluginClass: AttestedSecureKeysPlugin
+        dartPluginClass: AttestedSecureKeysAndroid

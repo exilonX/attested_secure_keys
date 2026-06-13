@@ -1,0 +1,36 @@
+name: attested_secure_keys_ios
+description: "iOS implementation of attested_secure_keys: hardware-backed, attestable EC P-256 keys via the Secure Enclave and App Attest."
+version: 0.1.0
+homepage: https://github.com/roeid/attested_secure_keys
+repository: https://github.com/roeid/attested_secure_keys
+issue_tracker: https://github.com/roeid/attested_secure_keys/issues
+topics:
+  - security
+  - cryptography
+  - keystore
+  - attestation
+  - secure-enclave
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  attested_secure_keys_platform_interface: ^0.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    implements: attested_secure_keys
+    platforms:
+      ios:
+        pluginClass: AttestedSecureKeysPlugin
+        dartPluginClass: AttestedSecureKeysIOS
