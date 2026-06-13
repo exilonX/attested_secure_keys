@@ -46,7 +46,7 @@ jobs:
         run: ./gradlew app:assembleDebug app:assembleDebugAndroidTest
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
