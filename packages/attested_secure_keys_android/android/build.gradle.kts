@@ -2,7 +2,7 @@ group = "ro.roeid.attested_secure_keys"
 version = "1.0-SNAPSHOT"
 
 buildscript {
-    val kotlinVersion = "2.2.20"
+    val kotlinVersion = "2.4.0"
     repositories {
         google()
         mavenCentral()
