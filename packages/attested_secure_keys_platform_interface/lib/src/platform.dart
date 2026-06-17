@@ -41,12 +41,16 @@ abstract class AttestedSecureKeysPlatform extends PlatformInterface {
 
   /// Generate a non-exportable EC P-256 key at the strongest available level
   /// that meets [minSecurityLevel], throwing [HwKeyUnsupportedError] otherwise.
+  ///
+  /// [attestationChallenge] (Android only) is embedded as the key-attestation
+  /// challenge so a backend can verify freshness; iOS ignores it.
   Future<HwKey> generateKey({
     required String alias,
     required KeySecurityLevel minSecurityLevel,
     required UserAuthPolicy userAuth,
     required AndroidKeyOptions android,
     required IosKeyOptions ios,
+    Uint8List? attestationChallenge,
   }) {
     throw UnimplementedError('generateKey() has not been implemented.');
   }

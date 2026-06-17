@@ -9,6 +9,7 @@ import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.security.keystore.UserNotAuthenticatedException
 import android.util.Base64
+import android.util.Log
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -35,8 +36,6 @@ import java.security.spec.ECGenParameterSpec
  * own [BigInteger]; it is exercised by the round-trip test in the Dart suite.
  *
  * TODOs (require a device build loop / later milestones):
- *  - Bind the server nonce as the attestation challenge at generation time
- *    (Android fixes the challenge at keygen; see [attest]).
  *  - Move heavy keystore work off the platform thread for production.
  */
 class AttestedSecureKeysPlugin :
@@ -83,6 +82,12 @@ class AttestedSecureKeysPlugin :
     callback: (Result<PgGeneratedKey>) -> Unit,
   ) = respond(callback) {
     val internal = internalAlias(request.alias)
+    Log.i(
+      TAG,
+      "generateKey: alias=${request.alias} minLevel=${request.minSecurityLevel.name} " +
+        "authType=${request.userAuth.type} strongBoxPreferred=${request.android.strongBoxPreferred} " +
+        "requireStrongBox=${request.android.requireStrongBox}",
+    )
     if (keyStore().containsAlias(internal)) keyStore().deleteEntry(internal)
 
     val wantStrongBox = (request.android.strongBoxPreferred ||
@@ -102,11 +107,17 @@ class AttestedSecureKeysPlugin :
     var lastError: Throwable? = null
     for ((index, attempt) in attempts.withIndex()) {
       try {
+        Log.d(
+          TAG,
+          "generateKey: attempt #$index strongBox=${attempt.strongBox} attestation=${attempt.attestation}",
+        )
         pair = generate(internal, attempt.strongBox, attempt.attestation, request)
         attUsed = attempt.attestation
+        Log.i(TAG, "generateKey: attempt #$index succeeded")
         break
       } catch (e: Exception) {
         lastError = e
+        Log.w(TAG, "generateKey: attempt #$index failed: ${e.javaClass.simpleName}: ${e.message}")
         // requireStrongBox: the very first attempt is the StrongBox one — if it
         // fails (typically StrongBoxUnavailableException), refuse rather than
         // silently dropping to the TEE.
@@ -142,14 +153,38 @@ class AttestedSecureKeysPlugin :
       )
     }
 
+    // Read back what the keystore ACTUALLY enforced for user-auth gating — never
+    // report the request as fact. A device can hand back a key without binding
+    // auth (no strong biometric/credential, or a lenient Keymaster); the caller
+    // must not be told a key is protected when it isn't.
+    val actuallyGated = keyInfoOf(internal)?.isUserAuthenticationRequired ?: false
+    val requestedGating = request.userAuth.type != PgUserAuthType.NONE
+    Log.i(
+      TAG,
+      "generateKey: alias=${request.alias} effective=${effective.name} attested=$attested " +
+        "requestedGating=$requestedGating actuallyGated=$actuallyGated",
+    )
+
+    // Fail closed: if gating was requested but the device didn't bind it, refuse
+    // rather than hand back a silently weaker key (mirrors the security floor above).
+    if (requestedGating && !actuallyGated) {
+      keyStore().deleteEntry(internal)
+      Log.w(TAG, "generateKey: gating requested but NOT enforced by device — key deleted")
+      throw FlutterError(
+        Codes.UNSUPPORTED,
+        "User authentication was requested but this device did not bind it to the key.",
+        null,
+      )
+    }
+
     PgGeneratedKey(
       alias = request.alias,
       publicJwk = jwkOf(keyPair.public as ECPublicKey),
       requestedLevel = request.minSecurityLevel,
       effectiveLevel = effective,
       attestationType = attestationType,
-      gatedByUserAuth = request.userAuth.type != PgUserAuthType.NONE,
-      userAuthType = request.userAuth.type,
+      gatedByUserAuth = actuallyGated,
+      userAuthType = if (actuallyGated) request.userAuth.type else PgUserAuthType.NONE,
     )
   }
 
@@ -171,6 +206,7 @@ class AttestedSecureKeysPlugin :
     }
 
     val gated = keyInfo?.isUserAuthenticationRequired == true
+    Log.i(TAG, "sign: alias=${request.alias} gated=$gated payloadBytes=${request.payload.size}")
     if (!gated) {
       // No user-auth gating: sign directly on the platform thread.
       try {
@@ -214,6 +250,7 @@ class AttestedSecureKeysPlugin :
       ContextCompat.getMainExecutor(host),
       object : BiometricPrompt.AuthenticationCallback() {
         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+          Log.i(TAG, "sign: BiometricPrompt succeeded")
           try {
             val authed = result.cryptoObject?.signature
               ?: throw FlutterError(
@@ -231,6 +268,7 @@ class AttestedSecureKeysPlugin :
         }
 
         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+          Log.w(TAG, "sign: BiometricPrompt error $errorCode: $errString")
           callback(
             Result.failure(FlutterError(Codes.USER_NOT_AUTH, errString.toString(), null)),
           )
@@ -243,6 +281,7 @@ class AttestedSecureKeysPlugin :
       },
     )
 
+    Log.i(TAG, "sign: presenting BiometricPrompt for ${request.alias}")
     host.runOnUiThread {
       prompt.authenticate(
         buildPromptInfo(request, keyInfo),
@@ -284,10 +323,10 @@ class AttestedSecureKeysPlugin :
       val leaf = chain.first()
       val type =
         if (chain.size > 1) PgAttestationType.ANDROID_KEY_ATTESTATION else PgAttestationType.NONE
-      // NOTE: Android binds the attestation challenge at key-generation time, so
-      // this chain's embedded challenge is fixed. The server must verify the
-      // challenge it expects; binding `request.nonce` requires regenerating the
-      // key with the nonce as challenge (a documented refinement).
+      // NOTE: Android binds the attestation challenge at key-GENERATION time
+      // (see generateKey's attestationChallenge). This returns that existing
+      // chain verbatim and echoes `request.nonce` into the result for the
+      // bundle; it does not re-bind. A fresh challenge needs a fresh key.
       PgAttestation(
         type = type,
         encoding = PgAttestationEncoding.X5C_DER,
@@ -371,8 +410,13 @@ class AttestedSecureKeysPlugin :
       .setDigests(KeyProperties.DIGEST_SHA256)
 
     if (attestation) {
-      // Placeholder challenge; see the note in [attest] about nonce binding.
-      builder.setAttestationChallenge(request.alias.toByteArray(Charsets.UTF_8))
+      // Bind the caller's server nonce as the attestation challenge when given
+      // (so a backend can verify freshness: challenge == nonce); fall back to
+      // the alias otherwise. Android fixes the challenge at key generation, so
+      // this must happen here — it cannot be set later in [attest].
+      builder.setAttestationChallenge(
+        request.attestationChallenge ?: request.alias.toByteArray(Charsets.UTF_8),
+      )
     }
     applyUserAuth(builder, request.userAuth)
     if (strongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -388,8 +432,18 @@ class AttestedSecureKeysPlugin :
   }
 
   private fun applyUserAuth(builder: KeyGenParameterSpec.Builder, policy: PgUserAuthPolicy) {
-    if (policy.type == PgUserAuthType.NONE) return
+    if (policy.type == PgUserAuthType.NONE) {
+      Log.d(TAG, "applyUserAuth: no gating requested")
+      return
+    }
     val seconds = (policy.validityMillis / 1000).toInt()
+    // CRITICAL: setUserAuthenticationParameters() only configures HOW gating works
+    // (timeout + authenticator type) — it does NOT turn gating on. The requirement
+    // is enabled solely by setUserAuthenticationRequired(true), whose default is
+    // false. Omitting it (the previous API >= R path did) produced keys that attest
+    // as `noAuthRequired = true` — usable with no biometric at all. Set it on both
+    // paths, then refine the "how" per API level.
+    builder.setUserAuthenticationRequired(true)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       val flags = when (policy.type) {
         PgUserAuthType.DEVICE_CREDENTIAL -> KeyProperties.AUTH_DEVICE_CREDENTIAL
@@ -397,13 +451,19 @@ class AttestedSecureKeysPlugin :
         else -> KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
       }
       builder.setUserAuthenticationParameters(seconds, flags)
+      Log.i(
+        TAG,
+        "applyUserAuth: required=true type=${policy.type} timeout=${seconds}s flags=$flags (API ${Build.VERSION.SDK_INT})",
+      )
     } else {
-      @Suppress("DEPRECATION")
-      builder.setUserAuthenticationRequired(true)
       if (seconds > 0) {
         @Suppress("DEPRECATION")
         builder.setUserAuthenticationValidityDurationSeconds(seconds)
       }
+      Log.i(
+        TAG,
+        "applyUserAuth: required=true type=${policy.type} validity=${seconds}s (legacy API ${Build.VERSION.SDK_INT})",
+      )
     }
   }
 
@@ -533,6 +593,7 @@ class AttestedSecureKeysPlugin :
   private companion object {
     const val ANDROID_KEYSTORE = "AndroidKeyStore"
     const val ALIAS_PREFIX = "ask:" // namespaces our entries within the keystore
+    const val TAG = "AttestedSecureKeys" // logcat tag for all native diagnostics
   }
 }
 

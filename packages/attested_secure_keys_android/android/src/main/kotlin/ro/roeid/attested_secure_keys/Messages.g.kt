@@ -446,7 +446,14 @@ data class PgGenerateKeyRequest (
   val minSecurityLevel: PgSecurityLevel,
   val userAuth: PgUserAuthPolicy,
   val android: PgAndroidKeyOptions,
-  val ios: PgIosKeyOptions
+  val ios: PgIosKeyOptions,
+  /**
+   * Optional server nonce to embed as the Android key-attestation challenge,
+   * bound at key-generation time (Android fixes the challenge at keygen). When
+   * null, Android falls back to the alias as a placeholder. iOS ignores this —
+   * App Attest binds the nonce later, in [AttestedSecureKeysApi.attest].
+   */
+  val attestationChallenge: ByteArray? = null
 )
  {
   companion object {
@@ -456,7 +463,8 @@ data class PgGenerateKeyRequest (
       val userAuth = pigeonVar_list[2] as PgUserAuthPolicy
       val android = pigeonVar_list[3] as PgAndroidKeyOptions
       val ios = pigeonVar_list[4] as PgIosKeyOptions
-      return PgGenerateKeyRequest(alias, minSecurityLevel, userAuth, android, ios)
+      val attestationChallenge = pigeonVar_list[5] as ByteArray?
+      return PgGenerateKeyRequest(alias, minSecurityLevel, userAuth, android, ios, attestationChallenge)
     }
   }
   fun toList(): List<Any?> {
@@ -466,6 +474,7 @@ data class PgGenerateKeyRequest (
       userAuth,
       android,
       ios,
+      attestationChallenge,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -476,7 +485,7 @@ data class PgGenerateKeyRequest (
       return true
     }
     val other = other as PgGenerateKeyRequest
-    return MessagesPigeonUtils.deepEquals(this.alias, other.alias) && MessagesPigeonUtils.deepEquals(this.minSecurityLevel, other.minSecurityLevel) && MessagesPigeonUtils.deepEquals(this.userAuth, other.userAuth) && MessagesPigeonUtils.deepEquals(this.android, other.android) && MessagesPigeonUtils.deepEquals(this.ios, other.ios)
+    return MessagesPigeonUtils.deepEquals(this.alias, other.alias) && MessagesPigeonUtils.deepEquals(this.minSecurityLevel, other.minSecurityLevel) && MessagesPigeonUtils.deepEquals(this.userAuth, other.userAuth) && MessagesPigeonUtils.deepEquals(this.android, other.android) && MessagesPigeonUtils.deepEquals(this.ios, other.ios) && MessagesPigeonUtils.deepEquals(this.attestationChallenge, other.attestationChallenge)
   }
 
   override fun hashCode(): Int {
@@ -486,10 +495,11 @@ data class PgGenerateKeyRequest (
     result = 31 * result + MessagesPigeonUtils.deepHash(this.userAuth)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.android)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.ios)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.attestationChallenge)
     return result
   }
   override fun toString(): String {
-    return "PgGenerateKeyRequest(alias=$alias, minSecurityLevel=$minSecurityLevel, userAuth=$userAuth, android=$android, ios=$ios)"
+    return "PgGenerateKeyRequest(alias=$alias, minSecurityLevel=$minSecurityLevel, userAuth=$userAuth, android=$android, ios=$ios, attestationChallenge=${attestationChallenge?.contentToString()})"
   }
 }
 

@@ -406,6 +406,11 @@ struct PgGenerateKeyRequest: Hashable, CustomStringConvertible {
   var userAuth: PgUserAuthPolicy
   var android: PgAndroidKeyOptions
   var ios: PgIosKeyOptions
+  /// Optional server nonce to embed as the Android key-attestation challenge,
+  /// bound at key-generation time (Android fixes the challenge at keygen). When
+  /// null, Android falls back to the alias as a placeholder. iOS ignores this —
+  /// App Attest binds the nonce later, in [AttestedSecureKeysApi.attest].
+  var attestationChallenge: FlutterStandardTypedData? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -415,13 +420,15 @@ struct PgGenerateKeyRequest: Hashable, CustomStringConvertible {
     let userAuth = pigeonVar_list[2] as! PgUserAuthPolicy
     let android = pigeonVar_list[3] as! PgAndroidKeyOptions
     let ios = pigeonVar_list[4] as! PgIosKeyOptions
+    let attestationChallenge: FlutterStandardTypedData? = nilOrValue(pigeonVar_list[5])
 
     return PgGenerateKeyRequest(
       alias: alias,
       minSecurityLevel: minSecurityLevel,
       userAuth: userAuth,
       android: android,
-      ios: ios
+      ios: ios,
+      attestationChallenge: attestationChallenge
     )
   }
   func toList() -> [Any?] {
@@ -431,13 +438,14 @@ struct PgGenerateKeyRequest: Hashable, CustomStringConvertible {
       userAuth,
       android,
       ios,
+      attestationChallenge,
     ]
   }
   static func == (lhs: PgGenerateKeyRequest, rhs: PgGenerateKeyRequest) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return MessagesPigeonInternal.deepEquals(lhs.alias, rhs.alias) && MessagesPigeonInternal.deepEquals(lhs.minSecurityLevel, rhs.minSecurityLevel) && MessagesPigeonInternal.deepEquals(lhs.userAuth, rhs.userAuth) && MessagesPigeonInternal.deepEquals(lhs.android, rhs.android) && MessagesPigeonInternal.deepEquals(lhs.ios, rhs.ios)
+    return MessagesPigeonInternal.deepEquals(lhs.alias, rhs.alias) && MessagesPigeonInternal.deepEquals(lhs.minSecurityLevel, rhs.minSecurityLevel) && MessagesPigeonInternal.deepEquals(lhs.userAuth, rhs.userAuth) && MessagesPigeonInternal.deepEquals(lhs.android, rhs.android) && MessagesPigeonInternal.deepEquals(lhs.ios, rhs.ios) && MessagesPigeonInternal.deepEquals(lhs.attestationChallenge, rhs.attestationChallenge)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -447,10 +455,11 @@ struct PgGenerateKeyRequest: Hashable, CustomStringConvertible {
     MessagesPigeonInternal.deepHash(value: userAuth, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: android, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: ios, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: attestationChallenge, hasher: &hasher)
   }
 
   public var description: String {
-    return "PgGenerateKeyRequest(alias: \(String(describing: alias)), minSecurityLevel: \(String(describing: minSecurityLevel)), userAuth: \(String(describing: userAuth)), android: \(String(describing: android)), ios: \(String(describing: ios)))"
+    return "PgGenerateKeyRequest(alias: \(String(describing: alias)), minSecurityLevel: \(String(describing: minSecurityLevel)), userAuth: \(String(describing: userAuth)), android: \(String(describing: android)), ios: \(String(describing: ios)), attestationChallenge: \(String(describing: attestationChallenge)))"
   }
 }
 

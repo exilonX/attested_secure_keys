@@ -10,9 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:meta/meta.dart' show immutable, protected, visibleForTesting;
 
 Object? _extractReplyValueOrThrow(
-  List<Object?>? replyList,
-  String channelName, {
-  required bool isNullValid,
+    List<Object?>? replyList,
+    String channelName, {
+    required bool isNullValid,
 }) {
   if (replyList == null) {
     throw PlatformException(
@@ -46,9 +46,8 @@ bool _deepEquals(Object? a, Object? b) {
   }
   if (a is List && b is List) {
     return a.length == b.length &&
-        a.indexed.every(
-          ((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]),
-        );
+        a.indexed
+            .every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
   }
   if (a is Map && b is Map) {
     if (a.length != b.length) {
@@ -97,6 +96,7 @@ int _deepHash(Object? value) {
   return value.hashCode;
 }
 
+
 /// Where the private key material lives. Higher == stronger assurance.
 enum PgSecurityLevel {
   strongBox,
@@ -107,7 +107,11 @@ enum PgSecurityLevel {
 }
 
 /// What proof of hardware origin the platform can produce for a key.
-enum PgAttestationType { androidKeyAttestation, appleAppAttest, none }
+enum PgAttestationType {
+  androidKeyAttestation,
+  appleAppAttest,
+  none,
+}
 
 /// User-presence/verification requirement enforced by the OS on key use.
 enum PgUserAuthType {
@@ -118,7 +122,11 @@ enum PgUserAuthType {
 }
 
 /// Encoding of the verbatim attestation artifact handed to the server.
-enum PgAttestationEncoding { x5cDer, cbor, jwt }
+enum PgAttestationEncoding {
+  x5cDer,
+  cbor,
+  jwt,
+}
 
 /// iOS keychain accessibility for the persisted (encrypted) key blob.
 enum PgIosAccessibility {
@@ -147,12 +155,17 @@ class PgJwk {
   String alg;
 
   List<Object?> _toList() {
-    return <Object?>[kty, crv, x, y, alg];
+    return <Object?>[
+      kty,
+      crv,
+      x,
+      y,
+      alg,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgJwk decode(Object result) {
     result as List<Object?>;
@@ -174,11 +187,7 @@ class PgJwk {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(kty, other.kty) &&
-        _deepEquals(crv, other.crv) &&
-        _deepEquals(x, other.x) &&
-        _deepEquals(y, other.y) &&
-        _deepEquals(alg, other.alg);
+    return _deepEquals(kty, other.kty) && _deepEquals(crv, other.crv) && _deepEquals(x, other.x) && _deepEquals(y, other.y) && _deepEquals(alg, other.alg);
   }
 
   @override
@@ -192,7 +201,10 @@ class PgJwk {
 }
 
 class PgUserAuthPolicy {
-  PgUserAuthPolicy({required this.type, required this.validityMillis});
+  PgUserAuthPolicy({
+    required this.type,
+    required this.validityMillis,
+  });
 
   PgUserAuthType type;
 
@@ -200,12 +212,14 @@ class PgUserAuthPolicy {
   int validityMillis;
 
   List<Object?> _toList() {
-    return <Object?>[type, validityMillis];
+    return <Object?>[
+      type,
+      validityMillis,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgUserAuthPolicy decode(Object result) {
     result as List<Object?>;
@@ -224,8 +238,7 @@ class PgUserAuthPolicy {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(type, other.type) &&
-        _deepEquals(validityMillis, other.validityMillis);
+    return _deepEquals(type, other.type) && _deepEquals(validityMillis, other.validityMillis);
   }
 
   @override
@@ -249,12 +262,14 @@ class PgAndroidKeyOptions {
   bool requireStrongBox;
 
   List<Object?> _toList() {
-    return <Object?>[strongBoxPreferred, requireStrongBox];
+    return <Object?>[
+      strongBoxPreferred,
+      requireStrongBox,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgAndroidKeyOptions decode(Object result) {
     result as List<Object?>;
@@ -273,8 +288,7 @@ class PgAndroidKeyOptions {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(strongBoxPreferred, other.strongBoxPreferred) &&
-        _deepEquals(requireStrongBox, other.requireStrongBox);
+    return _deepEquals(strongBoxPreferred, other.strongBoxPreferred) && _deepEquals(requireStrongBox, other.requireStrongBox);
   }
 
   @override
@@ -288,19 +302,24 @@ class PgAndroidKeyOptions {
 }
 
 class PgIosKeyOptions {
-  PgIosKeyOptions({required this.accessibility, this.accessGroup});
+  PgIosKeyOptions({
+    required this.accessibility,
+    this.accessGroup,
+  });
 
   PgIosAccessibility accessibility;
 
   String? accessGroup;
 
   List<Object?> _toList() {
-    return <Object?>[accessibility, accessGroup];
+    return <Object?>[
+      accessibility,
+      accessGroup,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgIosKeyOptions decode(Object result) {
     result as List<Object?>;
@@ -319,8 +338,7 @@ class PgIosKeyOptions {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(accessibility, other.accessibility) &&
-        _deepEquals(accessGroup, other.accessGroup);
+    return _deepEquals(accessibility, other.accessibility) && _deepEquals(accessGroup, other.accessGroup);
   }
 
   @override
@@ -340,6 +358,7 @@ class PgGenerateKeyRequest {
     required this.userAuth,
     required this.android,
     required this.ios,
+    this.attestationChallenge,
   });
 
   String alias;
@@ -352,13 +371,25 @@ class PgGenerateKeyRequest {
 
   PgIosKeyOptions ios;
 
+  /// Optional server nonce to embed as the Android key-attestation challenge,
+  /// bound at key-generation time (Android fixes the challenge at keygen). When
+  /// null, Android falls back to the alias as a placeholder. iOS ignores this —
+  /// App Attest binds the nonce later, in [AttestedSecureKeysApi.attest].
+  Uint8List? attestationChallenge;
+
   List<Object?> _toList() {
-    return <Object?>[alias, minSecurityLevel, userAuth, android, ios];
+    return <Object?>[
+      alias,
+      minSecurityLevel,
+      userAuth,
+      android,
+      ios,
+      attestationChallenge,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgGenerateKeyRequest decode(Object result) {
     result as List<Object?>;
@@ -368,6 +399,7 @@ class PgGenerateKeyRequest {
       userAuth: result[2]! as PgUserAuthPolicy,
       android: result[3]! as PgAndroidKeyOptions,
       ios: result[4]! as PgIosKeyOptions,
+      attestationChallenge: result[5] as Uint8List?,
     );
   }
 
@@ -380,11 +412,7 @@ class PgGenerateKeyRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(alias, other.alias) &&
-        _deepEquals(minSecurityLevel, other.minSecurityLevel) &&
-        _deepEquals(userAuth, other.userAuth) &&
-        _deepEquals(android, other.android) &&
-        _deepEquals(ios, other.ios);
+    return _deepEquals(alias, other.alias) && _deepEquals(minSecurityLevel, other.minSecurityLevel) && _deepEquals(userAuth, other.userAuth) && _deepEquals(android, other.android) && _deepEquals(ios, other.ios) && _deepEquals(attestationChallenge, other.attestationChallenge);
   }
 
   @override
@@ -393,7 +421,7 @@ class PgGenerateKeyRequest {
 
   @override
   String toString() {
-    return 'PgGenerateKeyRequest(alias: $alias, minSecurityLevel: $minSecurityLevel, userAuth: $userAuth, android: $android, ios: $ios)';
+    return 'PgGenerateKeyRequest(alias: $alias, minSecurityLevel: $minSecurityLevel, userAuth: $userAuth, android: $android, ios: $ios, attestationChallenge: $attestationChallenge)';
   }
 }
 
@@ -435,8 +463,7 @@ class PgGeneratedKey {
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgGeneratedKey decode(Object result) {
     result as List<Object?>;
@@ -460,13 +487,7 @@ class PgGeneratedKey {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(alias, other.alias) &&
-        _deepEquals(publicJwk, other.publicJwk) &&
-        _deepEquals(requestedLevel, other.requestedLevel) &&
-        _deepEquals(effectiveLevel, other.effectiveLevel) &&
-        _deepEquals(attestationType, other.attestationType) &&
-        _deepEquals(gatedByUserAuth, other.gatedByUserAuth) &&
-        _deepEquals(userAuthType, other.userAuthType);
+    return _deepEquals(alias, other.alias) && _deepEquals(publicJwk, other.publicJwk) && _deepEquals(requestedLevel, other.requestedLevel) && _deepEquals(effectiveLevel, other.effectiveLevel) && _deepEquals(attestationType, other.attestationType) && _deepEquals(gatedByUserAuth, other.gatedByUserAuth) && _deepEquals(userAuthType, other.userAuthType);
   }
 
   @override
@@ -496,12 +517,16 @@ class PgSignRequest {
   String? promptSubtitle;
 
   List<Object?> _toList() {
-    return <Object?>[alias, payload, promptTitle, promptSubtitle];
+    return <Object?>[
+      alias,
+      payload,
+      promptTitle,
+      promptSubtitle,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgSignRequest decode(Object result) {
     result as List<Object?>;
@@ -522,10 +547,7 @@ class PgSignRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(alias, other.alias) &&
-        _deepEquals(payload, other.payload) &&
-        _deepEquals(promptTitle, other.promptTitle) &&
-        _deepEquals(promptSubtitle, other.promptSubtitle);
+    return _deepEquals(alias, other.alias) && _deepEquals(payload, other.payload) && _deepEquals(promptTitle, other.promptTitle) && _deepEquals(promptSubtitle, other.promptSubtitle);
   }
 
   @override
@@ -539,22 +561,27 @@ class PgSignRequest {
 }
 
 class PgSignature {
-  PgSignature({required this.rawRS});
+  PgSignature({
+    required this.rawRS,
+  });
 
   /// Raw `R||S`, exactly 64 bytes (JOSE/COSE form, not DER).
   Uint8List rawRS;
 
   List<Object?> _toList() {
-    return <Object?>[rawRS];
+    return <Object?>[
+      rawRS,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgSignature decode(Object result) {
     result as List<Object?>;
-    return PgSignature(rawRS: result[0]! as Uint8List);
+    return PgSignature(
+      rawRS: result[0]! as Uint8List,
+    );
   }
 
   @override
@@ -580,19 +607,24 @@ class PgSignature {
 }
 
 class PgAttestRequest {
-  PgAttestRequest({required this.alias, required this.nonce});
+  PgAttestRequest({
+    required this.alias,
+    required this.nonce,
+  });
 
   String alias;
 
   Uint8List nonce;
 
   List<Object?> _toList() {
-    return <Object?>[alias, nonce];
+    return <Object?>[
+      alias,
+      nonce,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgAttestRequest decode(Object result) {
     result as List<Object?>;
@@ -649,12 +681,18 @@ class PgAttestation {
   Uint8List nonce;
 
   List<Object?> _toList() {
-    return <Object?>[type, encoding, x5c, raw, attestedKey, nonce];
+    return <Object?>[
+      type,
+      encoding,
+      x5c,
+      raw,
+      attestedKey,
+      nonce,
+    ];
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgAttestation decode(Object result) {
     result as List<Object?>;
@@ -677,12 +715,7 @@ class PgAttestation {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(type, other.type) &&
-        _deepEquals(encoding, other.encoding) &&
-        _deepEquals(x5c, other.x5c) &&
-        _deepEquals(raw, other.raw) &&
-        _deepEquals(attestedKey, other.attestedKey) &&
-        _deepEquals(nonce, other.nonce);
+    return _deepEquals(type, other.type) && _deepEquals(encoding, other.encoding) && _deepEquals(x5c, other.x5c) && _deepEquals(raw, other.raw) && _deepEquals(attestedKey, other.attestedKey) && _deepEquals(nonce, other.nonce);
   }
 
   @override
@@ -729,8 +762,7 @@ class PgKeyInfo {
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgKeyInfo decode(Object result) {
     result as List<Object?>;
@@ -753,12 +785,7 @@ class PgKeyInfo {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(alias, other.alias) &&
-        _deepEquals(publicJwk, other.publicJwk) &&
-        _deepEquals(securityLevel, other.securityLevel) &&
-        _deepEquals(attestationType, other.attestationType) &&
-        _deepEquals(gatedByUserAuth, other.gatedByUserAuth) &&
-        _deepEquals(userAuthType, other.userAuthType);
+    return _deepEquals(alias, other.alias) && _deepEquals(publicJwk, other.publicJwk) && _deepEquals(securityLevel, other.securityLevel) && _deepEquals(attestationType, other.attestationType) && _deepEquals(gatedByUserAuth, other.gatedByUserAuth) && _deepEquals(userAuthType, other.userAuthType);
   }
 
   @override
@@ -813,8 +840,7 @@ class PgCapabilities {
   }
 
   Object encode() {
-    return _toList();
-  }
+    return _toList();  }
 
   static PgCapabilities decode(Object result) {
     result as List<Object?>;
@@ -839,14 +865,7 @@ class PgCapabilities {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(hasStrongBox, other.hasStrongBox) &&
-        _deepEquals(hasTee, other.hasTee) &&
-        _deepEquals(hasSecureEnclave, other.hasSecureEnclave) &&
-        _deepEquals(supportsKeyAttestation, other.supportsKeyAttestation) &&
-        _deepEquals(supportsBiometricGating, other.supportsBiometricGating) &&
-        _deepEquals(bestAvailableLevel, other.bestAvailableLevel) &&
-        _deepEquals(androidApiLevel, other.androidApiLevel) &&
-        _deepEquals(iosVersion, other.iosVersion);
+    return _deepEquals(hasStrongBox, other.hasStrongBox) && _deepEquals(hasTee, other.hasTee) && _deepEquals(hasSecureEnclave, other.hasSecureEnclave) && _deepEquals(supportsKeyAttestation, other.supportsKeyAttestation) && _deepEquals(supportsBiometricGating, other.supportsBiometricGating) && _deepEquals(bestAvailableLevel, other.bestAvailableLevel) && _deepEquals(androidApiLevel, other.androidApiLevel) && _deepEquals(iosVersion, other.iosVersion);
   }
 
   @override
@@ -859,6 +878,7 @@ class PgCapabilities {
   }
 }
 
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -866,55 +886,55 @@ class _PigeonCodec extends StandardMessageCodec {
     if (value is int) {
       buffer.putUint8(4);
       buffer.putInt64(value);
-    } else if (value is PgSecurityLevel) {
+    }    else if (value is PgSecurityLevel) {
       buffer.putUint8(129);
       writeValue(buffer, value.index);
-    } else if (value is PgAttestationType) {
+    }    else if (value is PgAttestationType) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    } else if (value is PgUserAuthType) {
+    }    else if (value is PgUserAuthType) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    } else if (value is PgAttestationEncoding) {
+    }    else if (value is PgAttestationEncoding) {
       buffer.putUint8(132);
       writeValue(buffer, value.index);
-    } else if (value is PgIosAccessibility) {
+    }    else if (value is PgIosAccessibility) {
       buffer.putUint8(133);
       writeValue(buffer, value.index);
-    } else if (value is PgJwk) {
+    }    else if (value is PgJwk) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    } else if (value is PgUserAuthPolicy) {
+    }    else if (value is PgUserAuthPolicy) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    } else if (value is PgAndroidKeyOptions) {
+    }    else if (value is PgAndroidKeyOptions) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    } else if (value is PgIosKeyOptions) {
+    }    else if (value is PgIosKeyOptions) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    } else if (value is PgGenerateKeyRequest) {
+    }    else if (value is PgGenerateKeyRequest) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is PgGeneratedKey) {
+    }    else if (value is PgGeneratedKey) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PgSignRequest) {
+    }    else if (value is PgSignRequest) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PgSignature) {
+    }    else if (value is PgSignature) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PgAttestRequest) {
+    }    else if (value is PgAttestRequest) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PgAttestation) {
+    }    else if (value is PgAttestation) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PgKeyInfo) {
+    }    else if (value is PgKeyInfo) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PgCapabilities) {
+    }    else if (value is PgCapabilities) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
     } else {
@@ -974,13 +994,9 @@ class AttestedSecureKeysApi {
   /// Constructor for [AttestedSecureKeysApi]. The [binaryMessenger] named argument is
   /// available for dependency injection. If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
-  AttestedSecureKeysApi({
-    BinaryMessenger? binaryMessenger,
-    String messageChannelSuffix = '',
-  }) : pigeonVar_binaryMessenger = binaryMessenger,
-       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
-           ? '.$messageChannelSuffix'
-           : '';
+  AttestedSecureKeysApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
+      : pigeonVar_binaryMessenger = binaryMessenger,
+        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
   final BinaryMessenger? pigeonVar_binaryMessenger;
 
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -991,136 +1007,123 @@ class AttestedSecureKeysApi {
   /// secure hardware. Throws (FlutterError code `unsupported_security_level`)
   /// if [PgGenerateKeyRequest.minSecurityLevel] cannot be met.
   Future<PgGeneratedKey> generateKey(PgGenerateKeyRequest request) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.generateKey$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.generateKey$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[request],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as PgGeneratedKey;
   }
 
   /// ES256-sign the payload, returning raw 64-byte `R||S`.
   /// Triggers the OS biometric/PIN prompt when the key is auth-gated.
   Future<PgSignature> sign(PgSignRequest request) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.sign$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.sign$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[request],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as PgSignature;
   }
 
   /// Produce a fresh attestation bound to the supplied server nonce.
   Future<PgAttestation> attest(PgAttestRequest request) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.attest$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.attest$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[request],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as PgAttestation;
   }
 
   Future<PgKeyInfo?> getKeyInfo(String alias) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.getKeyInfo$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.getKeyInfo$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[alias],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[alias]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: true,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
     return pigeonVar_replyValue as PgKeyInfo?;
   }
 
   Future<bool> containsKey(String alias) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.containsKey$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.containsKey$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[alias],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[alias]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as bool;
   }
 
   Future<void> deleteKey(String alias) async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.deleteKey$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.deleteKey$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-      <Object?>[alias],
-    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[alias]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: true,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
   }
 
   Future<List<String>> listAliases() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.listAliases$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.listAliases$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -1130,17 +1133,17 @@ class AttestedSecureKeysApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return (pigeonVar_replyValue! as List<Object?>).cast<String>();
   }
 
   /// Probe what this device/OS can actually do, before generating anything.
   Future<PgCapabilities> capabilities() async {
-    final pigeonVar_channelName =
-        'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.capabilities$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName = 'dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.capabilities$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -1150,10 +1153,11 @@ class AttestedSecureKeysApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-      pigeonVar_replyList,
-      pigeonVar_channelName,
-      isNullValid: false,
-    );
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: false,
+    )
+    ;
     return pigeonVar_replyValue! as PgCapabilities;
   }
 }

@@ -74,11 +74,13 @@ final keys = AttestedSecureKeys();
 // 1) Discover what the device can actually do, before committing to a flow.
 final caps = await keys.capabilities();
 
-// 2) Generate the wallet key, requiring hardware + per-use biometric.
+// 2) Generate the wallet key, binding your server's nonce into the attestation
+//    (so the backend can prove this exact request — see "How it works").
 final key = await keys.generateKey(
   alias: 'wallet.holderKey',
   minSecurityLevel: KeySecurityLevel.trustedEnvironment, // SE on iOS, TEE/StrongBox on Android
   userAuth: const UserAuthPolicy.perUseBiometric(),
+  attestationChallenge: nonceFromServer,
 );
 assert(key.hasHardwareAttestation); // refuse software-only for HIGH assurance
 
@@ -96,21 +98,184 @@ final sig = await keys.sign(
 final jws = '$jwtHeaderAndPayload.${sig.jose}';
 ```
 
+## How it works — the attestation flow, end to end
+
+The library produces the cryptographic **artifacts**; it never talks to your
+server (that's your app's job — see *Security posture*). A complete, replay-safe
+enrollment looks like this:
+
+```dart
+// 1. Get a fresh random nonce from your server (single-use, time-bounded).
+final nonce = await myServer.getAttestationNonce(); // Uint8List
+
+// 2. Create the key, binding that nonce INTO the attestation.
+final key = await keys.generateKey(
+  alias: 'wallet.holderKey',
+  minSecurityLevel: KeySecurityLevel.trustedEnvironment,
+  userAuth: const UserAuthPolicy.perUseBiometric(),
+  attestationChallenge: nonce,        // ← binds the nonce; this is the point
+);
+
+// 3. Read the attestation and send it up with the public key.
+final att = await keys.attest(alias: 'wallet.holderKey', serverNonce: nonce);
+await myServer.enrollWalletKey(jwk: key.publicJwk, attestation: att);
+//   Your server then verifies: chain → genuine Google/Apple root, the leaf
+//   public key == the JWK, the hardware security level, AND challenge == nonce.
+//   The nonce match is what makes the attestation impossible to replay.
+```
+
+**Why the nonce is bound at `generateKey`, not `attest`.** On Android the
+attestation challenge is fixed by the Keystore **when the key is created** and
+cannot be changed afterwards — so the server's nonce must be known at generation
+time. `attest()` then returns that already-bound chain (and echoes the nonce for
+convenience). On **iOS** the model differs: App Attest binds the nonce at
+`attest()` time, so iOS ignores `attestationChallenge`.
+
+**Two kinds of freshness** — use both:
+
+| Proof | When | API | Demonstrates |
+|---|---|---|---|
+| **Enrollment attestation** | once, at sign-up | `generateKey(attestationChallenge: nonce)` | the key was born in hardware *for this enrollment* |
+| **Proof-of-possession** | every request after | `sign(payload: freshNonce)` | the holder still controls the key *right now* |
+
+**The trust boundary.** The client never decides trust — it ships verbatim
+artifacts and your **server** establishes trust against the real manufacturer
+roots. Treat `key.effectiveLevel` as a UX hint only. You can sanity-check a bundle
+locally (no backend) with `attested_secure_keys_verifier/verify-local.mjs` — see
+*Server-side verification*.
+
 ## API reference
 
-All methods are on the `AttestedSecureKeys` facade. Construct it with optional
-default per-platform options: `AttestedSecureKeys({AndroidKeyOptions aOptions, IosKeyOptions iOptions})`.
+Everything is on the **`AttestedSecureKeys`** facade. Construct it once, optionally
+with default per-platform options that individual calls can override:
 
-| Method | What it does |
-|---|---|
-| `Future<DeviceKeyCapabilities> capabilities()` | Probe the device — StrongBox/TEE/Secure-Enclave presence, attestation & biometric support, best level. Call before generating. |
-| `Future<HwKey> generateKey({required String alias, KeySecurityLevel minSecurityLevel, UserAuthPolicy userAuth, AndroidKeyOptions? aOptions, IosKeyOptions? iOptions})` | Generate a non-exportable EC P-256 key at the strongest available level. Throws `HwKeyUnsupportedError` (carrying the best available level) if `minSecurityLevel` can't be met. |
-| `Future<Es256Signature> sign({required String alias, required Uint8List payload, String? promptTitle, String? promptSubtitle})` | ES256-sign; returns 64-byte raw `R‖S` (base64url via `.jose`). Shows the biometric/PIN prompt for auth-gated keys. |
-| `Future<KeyAttestation> attest({required String alias, required Uint8List serverNonce})` | Produce a verbatim attestation bound to the nonce — Android X.509 chain / iOS App Attest. |
-| `Future<HwKeyInfo?> getKeyInfo({required String alias})` | Metadata for a key, or `null` if absent. |
-| `Future<bool> containsKey({required String alias})` | Whether a key exists under the alias. |
-| `Future<void> deleteKey({required String alias})` | Delete a key (no-op if absent). |
-| `Future<List<String>> listAliases()` | All aliases this library manages on the device. |
+```dart
+const keys = AttestedSecureKeys(
+  aOptions: AndroidKeyOptions.defaultOptions, // StrongBox-preferred, TEE fallback
+  iOptions: IosKeyOptions.defaultOptions,
+);
+```
+
+#### `capabilities()`
+
+```dart
+Future<DeviceKeyCapabilities> capabilities()
+```
+
+Probe what the device/OS can actually do **before** committing to a flow:
+StrongBox / TEE / Secure-Enclave presence, whether key attestation and biometric
+gating are supported, the best achievable `KeySecurityLevel`, and the OS version.
+Call this first to branch your UX (e.g. warn when only `software` is available).
+
+#### `generateKey(...)`
+
+```dart
+Future<HwKey> generateKey({
+  required String alias,
+  KeySecurityLevel minSecurityLevel = KeySecurityLevel.software,
+  UserAuthPolicy userAuth = UserAuthPolicy.none,
+  AndroidKeyOptions? aOptions,
+  IosKeyOptions? iOptions,
+  Uint8List? attestationChallenge,
+})
+```
+
+Generate a **new**, non-exportable EC P-256 key in the strongest available secure
+hardware, replacing any existing key under `alias`.
+
+- **`alias`** — your stable name for the key (namespaced internally; never
+  collides with other apps' keystore entries).
+- **`minSecurityLevel`** — the hardware floor. The call walks the fallback ladder
+  (StrongBox → TEE → software on Android; Secure Enclave → software on iOS) and
+  **throws `HwKeyUnsupportedError`** (carrying `bestAvailable`) if the floor can't
+  be met. The default `software` always succeeds — read `effectiveLevel` to see
+  what you actually got.
+- **`userAuth`** — gate key *use* behind biometrics/credential:
+  `UserAuthPolicy.none`, `.perUseBiometric()` (re-auth on every signature), or
+  `.timeBound(Duration)`. If gating is requested but the device doesn't bind it,
+  the call **fails closed** (deletes the key and throws) rather than returning a
+  silently weaker key.
+- **`aOptions` / `iOptions`** — per-call overrides of the facade defaults (e.g.
+  `AndroidKeyOptions.strongBoxRequired()`).
+- **`attestationChallenge`** *(Android only)* — your server nonce, embedded as the
+  key-attestation challenge so the backend can verify freshness
+  (`challenge == nonce`). Omit it and the alias is used as a placeholder (no
+  replay protection). iOS ignores it — see *How it works*.
+
+Returns an **`HwKey`** (public JWK, `keyId`, requested vs effective level,
+attestation type, and the *real* gating state read back from the keystore).
+
+#### `sign(...)`
+
+```dart
+Future<Es256Signature> sign({
+  required String alias,
+  required Uint8List payload,
+  String? promptTitle,
+  String? promptSubtitle,
+})
+```
+
+ES256-sign `payload` with the key's private half **inside** the secure hardware.
+Returns a 64-byte raw `R‖S` signature (`.bytes`), also available base64url-encoded
+as `.jose` (JOSE/COSE-ready — no DER ever reaches the caller). For an auth-gated
+key the OS biometric/PIN prompt fires automatically (labelled by `promptTitle` /
+`promptSubtitle`); cancelling it throws `UserNotAuthenticatedError`. Throws
+`KeyNotFoundError` if the alias is absent.
+
+> **Android:** signing an auth-gated key requires the host activity to extend
+> `FlutterFragmentActivity` (see *Android setup*).
+
+#### `attest(...)`
+
+```dart
+Future<KeyAttestation> attest({
+  required String alias,
+  required Uint8List serverNonce,
+})
+```
+
+Return the key's verbatim attestation for your server — an **Android X.509 chain**
+(`x5c`, leaf-first base64 DER) or an **iOS App Attest** object (`raw`). On Android
+the challenge was fixed at `generateKey`; this returns that chain and echoes
+`serverNonce` into the result. On iOS the nonce is bound here. Throws
+`KeyNotFoundError` if the key is absent, or `AttestationUnavailableError` if the
+device/entitlement can't produce one.
+
+#### `getKeyInfo(...)`
+
+```dart
+Future<HwKeyInfo?> getKeyInfo({required String alias})
+```
+
+Fetch live metadata for a key — public JWK, `keyId`, security level, attestation
+type, and the real gating state read back from the keystore — or `null` if no such
+key exists.
+
+#### `containsKey(...)`
+
+```dart
+Future<bool> containsKey({required String alias})
+```
+
+Whether a key exists under `alias`.
+
+#### `deleteKey(...)`
+
+```dart
+Future<void> deleteKey({required String alias})
+```
+
+Permanently delete the key under `alias` (no-op if it doesn't exist). The private
+key is destroyed in hardware and cannot be recovered.
+
+#### `listAliases()`
+
+```dart
+Future<List<String>> listAliases()
+```
+
+All aliases this library manages on the device.
 
 ### Result & option types
 
@@ -204,6 +369,19 @@ popular, audited Node libraries — `@peculiar/x509` + `pkijs`/`asn1js` (or
 shared JOSE/COSE/CBOR work. (Ships as `attested_secure_keys_verifier` — see the
 roadmap.)
 
+For a quick **local** sanity check with no backend, run the bundled
+`attested_secure_keys_verifier/verify-local.mjs` (plain Node + system `openssl`)
+against an exported `{ publicJwk, attestation }` bundle:
+
+```bash
+cd packages/attested_secure_keys_verifier
+npm run verify:local -- /path/to/bundle.json
+```
+
+It verifies the chain, pins the Google root by fingerprint, decodes the key
+properties (level / origin / verified-boot / gating), and checks
+`challenge == nonce`. It's a developer self-check, not a production verifier.
+
 ## Status & roadmap
 
 Early but moving fast.
@@ -211,19 +389,23 @@ Early but moving fast.
 - **M0 — done** — Dart API + typed Pigeon channel; Android Keystore keygen/sign/
   capabilities + attestation-chain passthrough; iOS Secure Enclave keygen/sign +
   App Attest scaffold; honest fallback reporting; example app.
-- **M1 — in progress** — ✅ federated packages (`_platform_interface` /
-  `_android` / `_ios`); ✅ `androidx.biometric` `BiometricPrompt.CryptoObject`
-  prompt for auth-gated signing. ⏳ on-device verification; binding the server
-  nonce as the Android attestation challenge.
+- **M1 — done** — ✅ federated packages (`_platform_interface` / `_android` /
+  `_ios`); ✅ `androidx.biometric` `BiometricPrompt.CryptoObject` prompt for
+  auth-gated signing; ✅ server nonce bound as the Android attestation challenge
+  (`generateKey(attestationChallenge:)`); ✅ Android on-device verification
+  (generate / sign / attest + biometric gating; attestation decoded all the way
+  to the genuine Google root). ⏳ iOS on-device pass.
 - **M2** — `attested_secure_keys_verifier` (Node) + OpenID4VCI Appendix D
   `keyattestation+jwt` emitter (`toOid4vciKeyAttestationJwt`) + conformance tests
   against real Google/Apple roots.
 - **M3** — Hardening for certification; publish to pub.dev under a verified
   publisher.
 
-> ⚠️ **Not yet device-verified.** The native crypto/attestation paths compile but
-> still need an on-device test pass; iOS App Attest needs the App Attest
-> entitlement and a real device.
+> ⚠️ **Android device-verified; iOS not yet.** The Android keygen / sign /
+> attestation + biometric-gating paths have been validated on real hardware (TEE
+> tier), including decoding the attestation to the genuine Google root. iOS
+> compiles but still needs an on-device pass (App Attest needs the entitlement
+> and a real device).
 
 ## Contributing
 

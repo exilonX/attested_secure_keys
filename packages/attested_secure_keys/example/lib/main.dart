@@ -29,6 +29,14 @@ class DemoPage extends StatefulWidget {
 
 class _DemoPageState extends State<DemoPage> {
   static const _alias = 'demo.holderKey';
+
+  /// A real flow uses a fresh server-issued random nonce. This fixed demo value
+  /// is bound BOTH as the attestation challenge at generateKey and echoed at
+  /// attest, so the exported bundle's freshness check (challenge == nonce)
+  /// passes end-to-end.
+  static final Uint8List _demoNonce = Uint8List.fromList(
+    List<int>.generate(32, (i) => (i * 7 + 3) & 0xff),
+  );
   final AttestedSecureKeys _keys = const AttestedSecureKeys();
 
   final List<String> _log = <String>[];
@@ -70,6 +78,8 @@ class _DemoPageState extends State<DemoPage> {
       userAuth: gated
           ? const UserAuthPolicy.perUseBiometric()
           : UserAuthPolicy.none,
+      // Bind the (demo) server nonce so the attestation is replay-checkable.
+      attestationChallenge: _demoNonce,
     );
     setState(() => _key = key);
     _append(
@@ -93,11 +103,8 @@ class _DemoPageState extends State<DemoPage> {
   });
 
   Future<void> _attest() => _run('attest', () async {
-    // A real flow uses a server-issued nonce; this is a fixed demo value.
-    final nonce = Uint8List.fromList(
-      List<int>.generate(32, (i) => (i * 7 + 3) & 0xff),
-    );
-    final att = await _keys.attest(alias: _alias, serverNonce: nonce);
+    // Same nonce that was bound at generateKey, so challenge == nonce.
+    final att = await _keys.attest(alias: _alias, serverNonce: _demoNonce);
     setState(() => _att = att);
     _append(
       '✓ attest: type=${att.type.name}, x5c=${att.x5c.length} cert(s), '

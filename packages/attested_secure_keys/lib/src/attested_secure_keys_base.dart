@@ -46,12 +46,18 @@ class AttestedSecureKeys {
   /// [minSecurityLevel] cannot be met. The default floor is
   /// [KeySecurityLevel.software], which always succeeds — inspect the result to
   /// see the assurance actually achieved.
+  ///
+  /// Pass [attestationChallenge] (your server-issued nonce) to bind it into the
+  /// Android key attestation at creation time, so a backend can later verify
+  /// `challenge == nonce` for freshness / anti-replay. iOS ignores it (App
+  /// Attest binds its nonce in [attest]).
   Future<HwKey> generateKey({
     required String alias,
     KeySecurityLevel minSecurityLevel = KeySecurityLevel.software,
     UserAuthPolicy userAuth = UserAuthPolicy.none,
     AndroidKeyOptions? aOptions,
     IosKeyOptions? iOptions,
+    Uint8List? attestationChallenge,
   }) {
     return _platform.generateKey(
       alias: alias,
@@ -59,6 +65,7 @@ class AttestedSecureKeys {
       userAuth: userAuth,
       android: aOptions ?? this.aOptions,
       ios: iOptions ?? this.iOptions,
+      attestationChallenge: attestationChallenge,
     );
   }
 

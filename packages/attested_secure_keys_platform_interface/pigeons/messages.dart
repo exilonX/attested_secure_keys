@@ -101,12 +101,19 @@ class PgGenerateKeyRequest {
     this.userAuth,
     this.android,
     this.ios,
+    this.attestationChallenge,
   );
   String alias;
   PgSecurityLevel minSecurityLevel;
   PgUserAuthPolicy userAuth;
   PgAndroidKeyOptions android;
   PgIosKeyOptions ios;
+
+  /// Optional server nonce to embed as the Android key-attestation challenge,
+  /// bound at key-generation time (Android fixes the challenge at keygen). When
+  /// null, Android falls back to the alias as a placeholder. iOS ignores this —
+  /// App Attest binds the nonce later, in [AttestedSecureKeysApi.attest].
+  Uint8List? attestationChallenge;
 }
 
 class PgGeneratedKey {

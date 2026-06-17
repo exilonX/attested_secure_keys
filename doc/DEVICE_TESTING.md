@@ -11,11 +11,15 @@ Test in two halves: **(A/B)** drive the demo app on real devices, **(C)** verify
 the exported attestation on a backend. The demo's **Copy JSON** button exports the
 `{ keyId, publicJwk, attestation }` bundle to the clipboard for step C.
 
-> ⚠️ **Current limitation to expect.** Android binds the attestation challenge at
-> key-generation time; today the plugin sets a *placeholder* challenge (the alias),
-> not your `serverNonce` — so the server check "challenge == nonce" will FAIL until
-> the M1 nonce-as-challenge binding lands. Everything else (chain→root, level,
-> key-match) is testable now. Track this before relying on replay protection.
+> ✅ **Nonce binding (M1) — implemented.** Pass your `serverNonce` to
+> `generateKey(attestationChallenge: …)` and Android embeds it as the
+> key-attestation challenge at key-generation time, so the server check
+> "challenge == nonce" passes. The demo binds a fixed demo nonce at *both*
+> generate and attest so the exported bundle round-trips. **If you omit it, the
+> alias is used as a placeholder and the freshness check fails** — always bind
+> the nonce for replay protection. (Android fixes the challenge at keygen, so it
+> cannot be set later in `attest`; bundles created before this change still
+> carry the alias.)
 
 ---
 

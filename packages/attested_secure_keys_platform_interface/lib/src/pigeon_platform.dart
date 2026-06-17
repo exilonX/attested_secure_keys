@@ -45,6 +45,7 @@ class PigeonAttestedSecureKeys extends AttestedSecureKeysPlatform {
     required UserAuthPolicy userAuth,
     required AndroidKeyOptions android,
     required IosKeyOptions ios,
+    Uint8List? attestationChallenge,
   }) => _guard(() async {
     final g = await _api.generateKey(
       PgGenerateKeyRequest(
@@ -62,6 +63,7 @@ class PigeonAttestedSecureKeys extends AttestedSecureKeysPlatform {
           accessibility: _accToPg(ios.accessibility),
           accessGroup: ios.accessGroup,
         ),
+        attestationChallenge: attestationChallenge,
       ),
     );
     final jwk = _jwkFromPg(g.publicJwk);

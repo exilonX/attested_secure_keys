@@ -32,6 +32,7 @@ class _FakePlatform extends AttestedSecureKeysPlatform
     required UserAuthPolicy userAuth,
     required AndroidKeyOptions android,
     required IosKeyOptions ios,
+    Uint8List? attestationChallenge,
   }) async {
     lastAndroid = android;
     lastIos = ios;
