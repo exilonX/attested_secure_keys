@@ -128,13 +128,10 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
         userAuthType: enforcedGating ? request.userAuth.type : .none
       )))
     } catch let error as PigeonError {
+      ASKLog.error("generateKey failed for '\(request.alias)': \(error.code) \(error.message ?? "")")
       completion(.failure(error))
     } catch {
-      completion(.failure(PigeonError(
-        code: Codes.keyOpFailed,
-        message: error.localizedDescription,
-        details: nil
-      )))
+      completion(.failure(keyOpError("generateKey", error, alias: request.alias)))
     }
   }
 
@@ -168,18 +165,26 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       completion(.success(PgSignature(rawRS: FlutterStandardTypedData(bytes: raw))))
     } catch {
       let nsError = error as NSError
-      if nsError.domain == LAError.errorDomain {
+      let detail = "domain=\(nsError.domain) code=\(nsError.code)"
+      ASKLog.error("sign failed for '\(request.alias)': \(detail): \(nsError.localizedDescription)")
+      // iOS cannot cleanly distinguish "user cancelled/failed auth" from "key
+      // invalidated by a biometric change" — both surface as an LAError or an
+      // errSecAuthFailed. We map both to userNotAuthenticated (the key may still
+      // be intact) but flag the invalidation possibility in the message so the
+      // app can offer re-enrollment if it keeps failing. See KeyInvalidatedError.
+      if nsError.domain == LAError.errorDomain
+        || (nsError.domain == NSOSStatusErrorDomain && nsError.code == Int(errSecAuthFailed))
+      {
         completion(.failure(PigeonError(
           code: Codes.userNotAuth,
-          message: "User authentication failed or was cancelled.",
-          details: nil
+          message: "User authentication failed or was cancelled (\(detail)): "
+            + nsError.localizedDescription
+            + ". If the device's biometrics changed, this key may have been "
+            + "invalidated — if it keeps failing, regenerate the key and re-enroll.",
+          details: request.alias
         )))
       } else {
-        completion(.failure(PigeonError(
-          code: Codes.keyOpFailed,
-          message: error.localizedDescription,
-          details: nil
-        )))
+        completion(.failure(keyOpError("sign", error, alias: request.alias)))
       }
     }
   }
@@ -216,11 +221,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           .publicKey.x963Representation
       }
     } catch {
-      completion(.failure(PigeonError(
-        code: Codes.keyOpFailed,
-        message: error.localizedDescription,
-        details: nil
-      )))
+      completion(.failure(keyOpError("attest (key load)", error, alias: request.alias)))
       return
     }
 
@@ -233,9 +234,15 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     let appAttest = DCAppAttestService.shared
     appAttest.generateKey { keyId, error in
       if let error = error {
+        let nsError = error as NSError
+        ASKLog.error(
+          "attest: App Attest generateKey failed: domain=\(nsError.domain) "
+            + "code=\(nsError.code): \(nsError.localizedDescription)")
         completion(.failure(PigeonError(
           code: Codes.attestationUnavailable,
-          message: error.localizedDescription,
+          message: "App Attest key generation failed (domain=\(nsError.domain) "
+            + "code=\(nsError.code)): \(nsError.localizedDescription). App Attest "
+            + "requires network + a provisioned Team ID; it cannot complete offline.",
           details: nil
         )))
         return
@@ -251,9 +258,15 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       // TODO: persist keyId and switch to per-session assertions (rate limits).
       appAttest.attestKey(keyId, clientDataHash: clientDataHash) { attestation, error in
         if let error = error {
+          let nsError = error as NSError
+          ASKLog.error(
+            "attest: App Attest attestKey failed: domain=\(nsError.domain) "
+              + "code=\(nsError.code): \(nsError.localizedDescription)")
           completion(.failure(PigeonError(
             code: Codes.attestationUnavailable,
-            message: error.localizedDescription,
+            message: "App Attest attestation failed (domain=\(nsError.domain) "
+              + "code=\(nsError.code)): \(nsError.localizedDescription). App Attest "
+              + "requires network; offline or rate-limited calls fail here.",
             details: nil
           )))
           return
@@ -308,11 +321,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
         userAuthType: .none
       )))
     } catch {
-      completion(.failure(PigeonError(
-        code: Codes.keyOpFailed,
-        message: error.localizedDescription,
-        details: nil
-      )))
+      completion(.failure(keyOpError("getKeyInfo", error, alias: alias)))
     }
   }
 
@@ -404,6 +413,24 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
 
   // MARK: - Helpers
 
+  /// Build a generic key-operation failure that PRESERVES the native error's
+  /// domain + code + description (never opaque) and logs it. The `alias` rides
+  /// along in `details` so the Dart side has the full context.
+  private func keyOpError(_ context: String, _ error: Error, alias: String? = nil)
+    -> PigeonError
+  {
+    let nsError = error as NSError
+    ASKLog.error(
+      "\(context) failed for \(alias ?? "-"): domain=\(nsError.domain) "
+        + "code=\(nsError.code): \(nsError.localizedDescription)")
+    return PigeonError(
+      code: Codes.keyOpFailed,
+      message: "\(context) failed (domain=\(nsError.domain) code=\(nsError.code)): "
+        + nsError.localizedDescription,
+      details: alias
+    )
+  }
+
   private func jwk(fromX963 data: Data) -> PgJwk {
     // x963Representation == 0x04 || X(32) || Y(32)
     let x = data.subdata(in: 1..<33)
@@ -451,6 +478,14 @@ private enum Codes {
   static let unsupported = "unsupported_security_level"
   static let userNotAuth = "user_not_authenticated"
   static let keyNotFound = "key_not_found"
+  static let keyInvalidated = "key_invalidated"
   static let attestationUnavailable = "attestation_unavailable"
   static let keyOpFailed = "key_operation_failed"
+}
+
+/// Lightweight logging — visible in Console.app / Xcode under the tag, mirroring
+/// the Android `AttestedSecureKeys` logcat tag. Diagnostic only (never secrets).
+enum ASKLog {
+  static func info(_ message: String) { NSLog("[AttestedSecureKeys] \(message)") }
+  static func error(_ message: String) { NSLog("[AttestedSecureKeys] ERROR \(message)") }
 }

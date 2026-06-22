@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.security.keystore.UserNotAuthenticatedException
 import android.util.Base64
@@ -197,33 +198,22 @@ class AttestedSecureKeysPlugin :
         ?: throw FlutterError(Codes.KEY_NOT_FOUND, "No key for alias.", request.alias)
       keyInfo = keyInfoOf(internal)
       signature.initSign(entry.privateKey)
-    } catch (e: FlutterError) {
-      callback(Result.failure(e))
-      return
-    } catch (e: Exception) {
-      callback(Result.failure(FlutterError(Codes.KEY_OP_FAILED, e.message, null)))
+    } catch (e: Throwable) {
+      // initSign on a permanently-invalidated key throws here — mapSignError
+      // routes it to KEY_INVALIDATED (and FlutterError/KEY_NOT_FOUND through).
+      callback(Result.failure(mapSignError(request.alias, e)))
       return
     }
 
     val gated = keyInfo?.isUserAuthenticationRequired == true
     Log.i(TAG, "sign: alias=${request.alias} gated=$gated payloadBytes=${request.payload.size}")
     if (!gated) {
-      // No user-auth gating: sign directly on the platform thread.
+      // No user-auth gating: sign directly on the (background) queue thread.
       try {
         signature.update(request.payload)
         callback(Result.success(PgSignature(derToRawRs(signature.sign()))))
-      } catch (e: UserNotAuthenticatedException) {
-        callback(
-          Result.failure(
-            FlutterError(
-              Codes.USER_NOT_AUTH,
-              "Fresh user authentication is required to use this key.",
-              null,
-            ),
-          ),
-        )
-      } catch (e: Exception) {
-        callback(Result.failure(FlutterError(Codes.KEY_OP_FAILED, e.message, null)))
+      } catch (e: Throwable) {
+        callback(Result.failure(mapSignError(request.alias, e)))
       }
       return
     }
@@ -260,17 +250,21 @@ class AttestedSecureKeysPlugin :
               )
             authed.update(request.payload)
             callback(Result.success(PgSignature(derToRawRs(authed.sign()))))
-          } catch (e: FlutterError) {
-            callback(Result.failure(e))
-          } catch (e: Exception) {
-            callback(Result.failure(FlutterError(Codes.KEY_OP_FAILED, e.message, null)))
+          } catch (e: Throwable) {
+            callback(Result.failure(mapSignError(request.alias, e)))
           }
         }
 
         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
           Log.w(TAG, "sign: BiometricPrompt error $errorCode: $errString")
           callback(
-            Result.failure(FlutterError(Codes.USER_NOT_AUTH, errString.toString(), null)),
+            Result.failure(
+              FlutterError(
+                Codes.USER_NOT_AUTH,
+                "Biometric authentication failed (code $errorCode): $errString",
+                request.alias,
+              ),
+            ),
           )
         }
 
@@ -283,10 +277,20 @@ class AttestedSecureKeysPlugin :
 
     Log.i(TAG, "sign: presenting BiometricPrompt for ${request.alias}")
     host.runOnUiThread {
-      prompt.authenticate(
-        buildPromptInfo(request, keyInfo),
-        BiometricPrompt.CryptoObject(signature),
-      )
+      // authenticate() runs on the UI thread; if it throws SYNCHRONOUSLY (e.g.
+      // the activity is mid-teardown / saved-state, or the CryptoObject is
+      // rejected) the exception would otherwise escape to the main looper
+      // (crash) AND leave the Dart future hung forever, because the prompt's
+      // callbacks never fire. Catch it and report exactly once. On success we do
+      // NOT call back here — onAuthenticationSucceeded/Error does.
+      try {
+        prompt.authenticate(
+          buildPromptInfo(request, keyInfo),
+          BiometricPrompt.CryptoObject(signature),
+        )
+      } catch (e: Throwable) {
+        callback(Result.failure(mapSignError(request.alias, e)))
+      }
     }
   }
 
@@ -361,6 +365,9 @@ class AttestedSecureKeysPlugin :
     try {
       keyStore().containsAlias(internalAlias(alias))
     } catch (e: Exception) {
+      // Contract: never throw from containsKey. But don't swallow silently —
+      // log WHY so an underlying keystore problem stays diagnosable.
+      Log.w(TAG, "containsKey('$alias') failed; reporting false", e)
       false
     }
 
@@ -467,8 +474,20 @@ class AttestedSecureKeysPlugin :
     }
   }
 
-  /** Generate a throwaway key, read its level, and delete it. */
+  // The device's strongest key tier is fixed for the life of the process, but
+  // there is no Keystore API to read it WITHOUT generating a key. probeBestLevel()
+  // therefore generates a throwaway EC key, reads its level, and deletes it. That
+  // is wasteful (a full keygen — slow on StrongBox) and was previously paid on
+  // EVERY capabilities() call, on the platform thread. It now runs on the serial
+  // background queue AND is cached after the first good result, so capabilities()
+  // is cheap thereafter. NOTE: this probe is sign-only, un-attested, and always
+  // deleted — it is a perf concern, not a security one; do not "optimize away"
+  // the cache by reintroducing a per-call keygen.
+  private var cachedBestLevel: PgSecurityLevel? = null
+
+  /** Generate a throwaway key, read its level, and delete it (cached). */
   private fun probeBestLevel(): PgSecurityLevel {
+    cachedBestLevel?.let { return it }
     val probe = ALIAS_PREFIX + "__probe__"
     return try {
       if (keyStore().containsAlias(probe)) keyStore().deleteEntry(probe)
@@ -478,13 +497,15 @@ class AttestedSecureKeysPlugin :
       KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
         .apply { initialize(builder.build()) }
         .generateKeyPair()
-      securityLevelOf(probe)
+      securityLevelOf(probe).also { if (it != PgSecurityLevel.UNKNOWN) cachedBestLevel = it }
     } catch (e: Exception) {
+      Log.w(TAG, "probeBestLevel failed; reporting UNKNOWN", e)
       PgSecurityLevel.UNKNOWN
     } finally {
       try {
         if (keyStore().containsAlias(probe)) keyStore().deleteEntry(probe)
-      } catch (_: Exception) {
+      } catch (e: Exception) {
+        Log.w(TAG, "probeBestLevel: failed to delete throwaway probe key", e)
       }
     }
   }
@@ -555,8 +576,17 @@ class AttestedSecureKeysPlugin :
   private fun b64Url(bytes: ByteArray): String =
     Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
-  private fun keyStore(): KeyStore =
+  /**
+   * The AndroidKeyStore is a live view of the on-device keystore daemon, so a
+   * single loaded instance reflects every later add/delete and is safe to reuse.
+   * Re-running `getInstance(...).load(null)` on each of the (many) helper calls
+   * per operation was pure overhead; load once and cache. `lazy` is thread-safe.
+   */
+  private val cachedKeyStore: KeyStore by lazy {
     KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+  }
+
+  private fun keyStore(): KeyStore = cachedKeyStore
 
   private fun internalAlias(alias: String) = ALIAS_PREFIX + alias
 
@@ -579,14 +609,71 @@ class AttestedSecureKeysPlugin :
     PgSecurityLevel.UNKNOWN -> "unknown"
   }
 
+  // -------------------------------------------------------------------------
+  // Error mapping & logging
+  //
+  // Principle: never swallow. Every failure is (a) logged with its full native
+  // stack under TAG, and (b) propagated to Dart with a stable code, a message
+  // that names the originating native exception type, and the native stack trace
+  // in `details` — so the caller always has the complete picture.
+  // -------------------------------------------------------------------------
+
+  /** A catch-all keystore failure: log the full stack, preserve type + stack to Dart. */
+  private fun keyOpError(context: String, e: Throwable): FlutterError {
+    Log.e(TAG, "$context: ${e.javaClass.simpleName}: ${e.message}", e)
+    return FlutterError(
+      Codes.KEY_OP_FAILED,
+      "$context: ${e.javaClass.simpleName}: ${e.message}",
+      Log.getStackTraceString(e),
+    )
+  }
+
+  /**
+   * Map a permanently-invalidated key (new fingerprint/face enrolled, or all
+   * biometrics removed). The private key is GONE; delete the dead entry so the
+   * app's `containsKey` reflects reality, then tell the caller to re-enroll.
+   */
+  private fun invalidatedError(alias: String?, e: Throwable): FlutterError {
+    val who = alias?.let { " '$it'" } ?: ""
+    Log.e(TAG, "key$who permanently invalidated (biometric/credential changed)", e)
+    if (alias != null) {
+      try {
+        keyStore().deleteEntry(internalAlias(alias))
+      } catch (cleanup: Exception) {
+        Log.w(TAG, "failed to delete invalidated key$who", cleanup)
+      }
+    }
+    return FlutterError(
+      Codes.KEY_INVALIDATED,
+      "Key$who was permanently invalidated by a biometric/credential change" +
+        (if (alias != null) " and has been removed" else "") +
+        "; generate a new key and re-enroll it.",
+      alias,
+    )
+  }
+
+  /** Map any throwable from a `sign` path to the right stable error. */
+  private fun mapSignError(alias: String, e: Throwable): FlutterError = when (e) {
+    is FlutterError -> e
+    is KeyPermanentlyInvalidatedException -> invalidatedError(alias, e)
+    is UserNotAuthenticatedException -> {
+      Log.w(TAG, "sign: '$alias' needs fresh user authentication", e)
+      FlutterError(Codes.USER_NOT_AUTH, "Fresh user authentication is required to use this key.", alias)
+    }
+    else -> keyOpError("sign '$alias'", e)
+  }
+
   /** Run [block], delivering its result or a mapped error through [callback]. */
   private inline fun <T> respond(callback: (Result<T>) -> Unit, block: () -> T) {
     try {
       callback(Result.success(block()))
     } catch (e: FlutterError) {
+      Log.w(TAG, "operation returned error code=${e.code}: ${e.message}")
       callback(Result.failure(e))
+    } catch (e: KeyPermanentlyInvalidatedException) {
+      callback(Result.failure(invalidatedError(null, e)))
     } catch (e: Throwable) {
-      callback(Result.failure(FlutterError(Codes.KEY_OP_FAILED, e.message, null)))
+      callback(Result.failure(keyOpError("key operation", e)))
     }
   }
 
@@ -602,6 +689,7 @@ private object Codes {
   const val UNSUPPORTED = "unsupported_security_level"
   const val USER_NOT_AUTH = "user_not_authenticated"
   const val KEY_NOT_FOUND = "key_not_found"
+  const val KEY_INVALIDATED = "key_invalidated"
   const val ATTESTATION_UNAVAILABLE = "attestation_unavailable"
   const val KEY_OP_FAILED = "key_operation_failed"
 }

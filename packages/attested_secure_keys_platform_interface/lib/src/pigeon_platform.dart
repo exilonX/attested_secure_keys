@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show PlatformException;
+import 'package:meta/meta.dart';
 
 import 'errors.dart';
 import 'jwk.dart';
@@ -154,34 +155,57 @@ Future<T> _guard<T>(Future<T> Function() op) async {
   }
 }
 
+/// Translates a wire-level [PlatformException] into the library's typed
+/// [AttestedSecureKeysException] hierarchy. Exposed only for tests; production
+/// code reaches it via [_guard].
+@visibleForTesting
+AttestedSecureKeysException translatePlatformException(PlatformException e) =>
+    _translate(e);
+
 AttestedSecureKeysException _translate(PlatformException e) {
+  // `details` is preserved on every branch so the caller never loses the native
+  // diagnostic (a level name, an alias, or a native stack-trace string).
   switch (e.code) {
     case ErrorCodes.unsupportedSecurityLevel:
       return HwKeyUnsupportedError(
         e.message ?? 'Requested security level is unavailable.',
         bestAvailable: _levelFromName(e.details),
         code: e.code,
+        details: e.details,
       );
     case ErrorCodes.userNotAuthenticated:
       return UserNotAuthenticatedError(
         e.message ?? 'User authentication is required to use this key.',
         code: e.code,
+        details: e.details,
       );
     case ErrorCodes.keyNotFound:
       return KeyNotFoundError(
         e.details is String ? e.details as String : '',
         e.message ?? 'No key found for the given alias.',
         code: e.code,
+        details: e.details,
+      );
+    case ErrorCodes.keyInvalidated:
+      return KeyInvalidatedError(
+        e.details is String ? e.details as String : '',
+        e.message ??
+            'The key was permanently invalidated; generate a new key and '
+                're-enroll.',
+        code: e.code,
+        details: e.details,
       );
     case ErrorCodes.attestationUnavailable:
       return AttestationUnavailableError(
         e.message ?? 'Hardware attestation is unavailable on this device.',
         code: e.code,
+        details: e.details,
       );
     default:
       return KeyOperationError(
         e.message ?? 'The key operation failed.',
         code: e.code,
+        details: e.details,
       );
   }
 }
