@@ -28,9 +28,18 @@ jobs:
         run: dart format --output=none --set-exit-if-changed $(git ls-files '*.dart' ':!*.g.dart')
       - name: Analyze
         run: flutter analyze
-      - name: Unit tests
+      - name: Unit tests (facade) + coverage
         working-directory: packages/attested_secure_keys
-        run: flutter test
+        run: flutter test --coverage
+      - name: Unit tests (platform interface) + coverage
+        working-directory: packages/attested_secure_keys_platform_interface
+        run: flutter test --coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: packages/attested_secure_keys/coverage/lcov.info,packages/attested_secure_keys_platform_interface/coverage/lcov.info
+          fail_ci_if_error: false # never block CI on a coverage-upload hiccup
+        # Public repos upload tokenless; for a private repo add a CODECOV_TOKEN secret.
 
   build-android:
     name: Build example (Android)
@@ -61,3 +70,41 @@ jobs:
       - name: Build iOS, no codesign (compiles the Swift host API)
         working-directory: packages/attested_secure_keys/example
         run: flutter build ios --no-codesign
+
+  release-checks:
+    name: Release checks (version lockstep · publish dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      # The four federated packages are published together and must agree on one
+      # version, or a tagged release would publish a mismatched set.
+      - name: All four packages share one version
+        run: |
+          versions=$(grep -hE '^version:' \
+            packages/attested_secure_keys/pubspec.yaml \
+            packages/attested_secure_keys_platform_interface/pubspec.yaml \
+            packages/attested_secure_keys_android/pubspec.yaml \
+            packages/attested_secure_keys_ios/pubspec.yaml | sort -u)
+          printf 'versions found:\n%s\n' "$versions"
+          if [ "$(printf '%s\n' "$versions" | wc -l)" -ne 1 ]; then
+            echo "::error::Federated packages must share one version before publishing."
+            exit 1
+          fi
+      # The platform interface has no internal deps, so its dry-run is a clean
+      # publishability gate.
+      - name: Publish dry-run — platform interface
+        working-directory: packages/attested_secure_keys_platform_interface
+        run: flutter pub publish --dry-run
+      # Dependents reference the others by hosted version; until the first publish
+      # those constraints are unresolvable, so keep this informational.
+      - name: Publish dry-run — dependents (informational until first publish)
+        run: |
+          for p in attested_secure_keys_android attested_secure_keys_ios attested_secure_keys; do
+            echo "== dry-run: $p =="
+            (cd "packages/$p" && flutter pub publish --dry-run) \
+              || echo "::warning::dry-run for $p reported issues (expected until deps are first published)"
+          done

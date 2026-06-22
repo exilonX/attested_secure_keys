@@ -12,10 +12,15 @@ actually achieved — the library never silently downgrades.
 > and use keys that can't be exfiltrated. Modeled on the ergonomics of
 > `flutter_secure_storage` — but for *keys*, not data.
 
-<!-- Badges (enable once published):
+[![CI](https://github.com/exilonX/attested_secure_keys/actions/workflows/ci.yml/badge.svg)](https://github.com/exilonX/attested_secure_keys/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/exilonX/attested_secure_keys/branch/main/graph/badge.svg)](https://codecov.io/gh/exilonX/attested_secure_keys)
 [![pub package](https://img.shields.io/pub/v/attested_secure_keys.svg)](https://pub.dev/packages/attested_secure_keys)
+[![pub points](https://img.shields.io/pub/points/attested_secure_keys)](https://pub.dev/packages/attested_secure_keys/score)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
--->
+[![style: flutter_lints](https://img.shields.io/badge/style-flutter__lints-40c4ff.svg)](https://pub.dev/packages/flutter_lints)
+
+<!-- The pub.dev and Codecov badges activate after the first publish / coverage upload. -->
+
 
 ## Why this exists
 

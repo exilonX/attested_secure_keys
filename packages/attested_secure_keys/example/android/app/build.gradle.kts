@@ -28,6 +28,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Lets Firebase Test Lab / `gradlew app:assembleDebugAndroidTest` drive the
+        // Dart integration_test suite on real devices (see device-tests.yml).
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -41,4 +44,13 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // androidTest harness for the on-device integration_test run (Firebase Test Lab).
+    // Versions MUST match what Flutter's integration_test pins on the app runtime
+    // classpath (androidx.test:runner/rules strictly 1.2.0, junit strictly 4.12);
+    // consistent resolution rejects anything else. junit comes transitively.
+    androidTestImplementation("androidx.test:runner:1.2.0")
+    androidTestImplementation("androidx.test:rules:1.2.0")
 }
