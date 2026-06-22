@@ -224,35 +224,56 @@ class PgCapabilities {
 // Host API (implemented natively in Kotlin / Swift)
 // ---------------------------------------------------------------------------
 
+/// Every method carries
+/// `@TaskQueue(type: TaskQueueType.serialBackgroundThread)`: Keystore /
+/// Secure-Enclave work (key generation — seconds on StrongBox —, signing,
+/// attestation chain serialization) is heavy and MUST NOT run on the Flutter
+/// platform (main/UI) thread, where it would jank or trip an ANR. Pigeon
+/// dispatches all annotated methods on a SINGLE shared serial background thread,
+/// which both moves them off the UI thread AND serializes secure-hardware access
+/// (Keymaster/StrongBox is single-flight anyway), giving deterministic ordering.
+///
+/// The biometric prompt is the one thing that must touch the UI thread; the
+/// native `sign` implementation re-dispatches `BiometricPrompt.authenticate`
+/// (Android) to the main thread itself, so gating still works transparently —
+/// callers do nothing.
 @HostApi()
 abstract class AttestedSecureKeysApi {
   /// Generate a NEW non-exportable EC P-256 key in the strongest available
   /// secure hardware. Throws (FlutterError code `unsupported_security_level`)
   /// if [PgGenerateKeyRequest.minSecurityLevel] cannot be met.
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   @async
   PgGeneratedKey generateKey(PgGenerateKeyRequest request);
 
   /// ES256-sign the payload, returning raw 64-byte `R||S`.
   /// Triggers the OS biometric/PIN prompt when the key is auth-gated.
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   @async
   PgSignature sign(PgSignRequest request);
 
   /// Produce a fresh attestation bound to the supplied server nonce.
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   @async
   PgAttestation attest(PgAttestRequest request);
 
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   @async
   PgKeyInfo? getKeyInfo(String alias);
 
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   bool containsKey(String alias);
 
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   @async
   void deleteKey(String alias);
 
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   @async
   List<String> listAliases();
 
   /// Probe what this device/OS can actually do, before generating anything.
+  @TaskQueue(type: TaskQueueType.serialBackgroundThread)
   @async
   PgCapabilities capabilities();
 }
