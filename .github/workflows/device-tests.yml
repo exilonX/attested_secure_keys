@@ -62,8 +62,13 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      # Pick a TEE device and a StrongBox-capable device to cover both tiers.
-      # List ids with: gcloud firebase test android models list
+      # Devices: combos MUST be valid (panther/34 returned "Incompatible
+      # device/OS combination") — list valid ones with:
+      #   gcloud firebase test android models list
+      # Start with one known-good StrongBox device; expand the matrix once green.
+      # Do NOT add --use-orchestrator: the Android Test Orchestrator runs each
+      # test method in its own process and is incompatible with Flutter's
+      # integration_test (single-pass FlutterTestRunner) — it hangs → "Test timed out".
       - name: Run integration_test on Firebase Test Lab
         working-directory: packages/attested_secure_keys/example
         env:
@@ -83,6 +88,4 @@ jobs:
             --test build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
             $BUCKET_ARG \
             --device model=oriole,version=33,locale=en,orientation=portrait \
-            --device model=panther,version=34,locale=en,orientation=portrait \
-            --timeout 6m \
-            --use-orchestrator
+            --timeout 6m
