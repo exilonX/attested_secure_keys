@@ -147,7 +147,9 @@ class _DemoPageState extends State<DemoPage> {
         return true;
       },
     );
-    _append('✓ re-enroll: signed with the fresh key (${sig.bytes.length}-byte R‖S)');
+    _append(
+      '✓ re-enroll: signed with the fresh key (${sig.bytes.length}-byte R‖S)',
+    );
   });
 
   Future<void> _delete() => _run('deleteKey', () async {

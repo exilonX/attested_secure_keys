@@ -1,0 +1,6 @@
+# The Gradle wrapper script MUST stay LF — CI (Linux) executes ./gradlew, and a
+# CRLF shebang fails with "No such file or directory". The jar is binary and must
+# never be line-ending-converted; the .bat is Windows-only.
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+gradle/wrapper/gradle-wrapper.jar binary
