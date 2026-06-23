@@ -1,8 +1,8 @@
-gradle-wrapper.jar
+# NOTE: the Gradle wrapper (gradlew, gradlew.bat, gradle-wrapper.jar) is
+# intentionally committed — the Firebase Test Lab workflow (device-tests.yml)
+# invokes ./gradlew directly on a fresh checkout, so the wrapper must be tracked.
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/

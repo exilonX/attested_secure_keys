@@ -8,21 +8,24 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('translatePlatformException maps every native code to a typed error', () {
-    test('unsupported_security_level → HwKeyUnsupportedError (+ bestAvailable)', () {
-      final e = translatePlatformException(
-        PlatformException(
-          code: ErrorCodes.unsupportedSecurityLevel,
-          message: 'only TEE',
-          details: 'trustedEnvironment',
-        ),
-      );
-      expect(e, isA<HwKeyUnsupportedError>());
-      e as HwKeyUnsupportedError;
-      expect(e.bestAvailable, KeySecurityLevel.trustedEnvironment);
-      expect(e.code, ErrorCodes.unsupportedSecurityLevel);
-      expect(e.message, 'only TEE');
-      expect(e.details, 'trustedEnvironment');
-    });
+    test(
+      'unsupported_security_level → HwKeyUnsupportedError (+ bestAvailable)',
+      () {
+        final e = translatePlatformException(
+          PlatformException(
+            code: ErrorCodes.unsupportedSecurityLevel,
+            message: 'only TEE',
+            details: 'trustedEnvironment',
+          ),
+        );
+        expect(e, isA<HwKeyUnsupportedError>());
+        e as HwKeyUnsupportedError;
+        expect(e.bestAvailable, KeySecurityLevel.trustedEnvironment);
+        expect(e.code, ErrorCodes.unsupportedSecurityLevel);
+        expect(e.message, 'only TEE');
+        expect(e.details, 'trustedEnvironment');
+      },
+    );
 
     test('user_not_authenticated → UserNotAuthenticatedError', () {
       final e = translatePlatformException(
@@ -74,30 +77,36 @@ void main() {
       expect(e.code, ErrorCodes.attestationUnavailable);
     });
 
-    test('unknown code → KeyOperationError, preserving code/message/native stack', () {
-      final e = translatePlatformException(
-        PlatformException(
-          code: 'some_unexpected_native_code',
-          message: 'KeyStoreException: boom',
-          details: 'java.security.KeyStoreException ...stack...',
-        ),
-      );
-      expect(e, isA<KeyOperationError>());
-      // Nothing is collapsed: the original code, the native exception type in the
-      // message, and the native stack in details all survive to the caller.
-      expect(e.code, 'some_unexpected_native_code');
-      expect(e.message, 'KeyStoreException: boom');
-      expect(e.details, contains('stack'));
-    });
+    test(
+      'unknown code → KeyOperationError, preserving code/message/native stack',
+      () {
+        final e = translatePlatformException(
+          PlatformException(
+            code: 'some_unexpected_native_code',
+            message: 'KeyStoreException: boom',
+            details: 'java.security.KeyStoreException ...stack...',
+          ),
+        );
+        expect(e, isA<KeyOperationError>());
+        // Nothing is collapsed: the original code, the native exception type in the
+        // message, and the native stack in details all survive to the caller.
+        expect(e.code, 'some_unexpected_native_code');
+        expect(e.message, 'KeyStoreException: boom');
+        expect(e.details, contains('stack'));
+      },
+    );
 
-    test('null message still yields a non-empty message and keeps the code', () {
-      final e = translatePlatformException(
-        PlatformException(code: ErrorCodes.keyOperationFailed),
-      );
-      expect(e, isA<KeyOperationError>());
-      expect(e.code, ErrorCodes.keyOperationFailed);
-      expect(e.message, isNotEmpty);
-    });
+    test(
+      'null message still yields a non-empty message and keeps the code',
+      () {
+        final e = translatePlatformException(
+          PlatformException(code: ErrorCodes.keyOperationFailed),
+        );
+        expect(e, isA<KeyOperationError>());
+        expect(e.code, ErrorCodes.keyOperationFailed);
+        expect(e.message, isNotEmpty);
+      },
+    );
 
     test('toString() includes the code for diagnostics', () {
       final e = translatePlatformException(

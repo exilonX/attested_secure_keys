@@ -60,7 +60,12 @@ class UserNotAuthenticatedError extends AttestedSecureKeysException {
 /// Thrown when an operation references an alias that doesn't exist.
 class KeyNotFoundError extends AttestedSecureKeysException {
   /// Creates the error for [alias].
-  const KeyNotFoundError(this.alias, super.message, {super.code, super.details});
+  const KeyNotFoundError(
+    this.alias,
+    super.message, {
+    super.code,
+    super.details,
+  });
 
   /// The missing alias.
   final String alias;

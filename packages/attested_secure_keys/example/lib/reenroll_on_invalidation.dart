@@ -84,7 +84,9 @@ Future<Es256Signature> reEnrollAndSign({
   //    the unlocked phone — never rotate the binding key silently.
   final ok = await stepUp();
   if (!ok) {
-    throw StateError('Re-enrollment cancelled: identity step-up not satisfied.');
+    throw StateError(
+      'Re-enrollment cancelled: identity step-up not satisfied.',
+    );
   }
 
   // 2) Fresh server nonce so the new attestation is replay-checkable.
