@@ -4,15 +4,20 @@ name: Device tests (Firebase Test Lab)
 # Test Lab. Emulators always report software/none, so this is the only way to
 # exercise the genuine Keystore / StrongBox / attestation paths across OS levels.
 #
-# One-time setup (once the repo + a GCP project exist):
-#   1. Create a GCP project and enable the "Cloud Testing" + "Cloud Tool Results" APIs.
+# One-time setup (once the repo + a GCP project exist). See doc/FIREBASE_TEST_LAB.md
+# for the exact gcloud commands.
+#   1. Enable APIs: testing, toolresults, iamcredentials, sts (the last two are
+#      required for Workload Identity Federation impersonation — easy to miss).
 #   2. Configure Workload Identity Federation for this repo (preferred — no keys),
 #      OR add a service-account JSON as the secret GCP_SA_KEY.
-#   3. Set repo variables: GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT.
-#   4. Add the Android instrumentation harness the integration_test docs require:
-#      example/android/app/src/androidTest/.../MainActivityTest.java
-#      (see https://docs.flutter.dev/cookbook/testing/integration/introduction
-#       → "Android device testing" / Firebase Test Lab).
+#   3. Service account roles: cloudtestservice.testAdmin + serviceusage.serviceUsageConsumer,
+#      and storage.objectAdmin ON YOUR RESULTS BUCKET (see 5).
+#   4. The Android instrumentation harness is committed:
+#      example/android/app/src/androidTest/.../MainActivityTest.java.
+#   5. Create a results bucket you OWN (the default Test Lab bucket is Google-managed
+#      and a custom SA cannot write to it).
+#   6. Set repo variables: GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT,
+#      GCP_RESULTS_BUCKET (the bucket from 5).
 
 on:
   workflow_dispatch:
@@ -61,11 +66,22 @@ jobs:
       # List ids with: gcloud firebase test android models list
       - name: Run integration_test on Firebase Test Lab
         working-directory: packages/attested_secure_keys/example
+        env:
+          # A results bucket IN YOUR project. Required: Test Lab's *default*
+          # bucket is Google-managed and a custom service account cannot write to
+          # it (storage.objects.create denied). Create one you own and grant the
+          # SA roles/storage.objectAdmin on it, then set this repo variable. If
+          # unset, the run uses the default bucket (works only with the
+          # Firebase-managed Test Lab service identity, not a custom SA).
+          RESULTS_BUCKET: ${{ vars.GCP_RESULTS_BUCKET }}
         run: |
+          BUCKET_ARG=""
+          if [ -n "$RESULTS_BUCKET" ]; then BUCKET_ARG="--results-bucket=$RESULTS_BUCKET"; fi
           gcloud firebase test android run \
             --type instrumentation \
             --app build/app/outputs/apk/debug/app-debug.apk \
             --test build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            $BUCKET_ARG \
             --device model=oriole,version=33,locale=en,orientation=portrait \
             --device model=panther,version=34,locale=en,orientation=portrait \
             --timeout 6m \
