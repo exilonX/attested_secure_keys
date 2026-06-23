@@ -1,9 +1,9 @@
 name: attested_secure_keys_ios
 description: "iOS implementation of attested_secure_keys: hardware-backed, attestable EC P-256 keys via the Secure Enclave and App Attest."
 version: 0.1.0
-homepage: https://github.com/roeid/attested_secure_keys
-repository: https://github.com/roeid/attested_secure_keys
-issue_tracker: https://github.com/roeid/attested_secure_keys/issues
+homepage: https://github.com/exilonX/attested_secure_keys
+repository: https://github.com/exilonX/attested_secure_keys
+issue_tracker: https://github.com/exilonX/attested_secure_keys/issues
 topics:
   - security
   - cryptography
