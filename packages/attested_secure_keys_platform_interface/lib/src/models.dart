@@ -119,6 +119,23 @@ class HwKey {
   /// True when a server-verifiable proof of hardware origin is available.
   bool get hasHardwareAttestation => attestationType != KeyAttestationType.none;
 
+  /// Returns a copy with the given fields replaced. Useful to fold the result
+  /// of a later `attest()` or `getKeyInfo()` back into a held handle.
+  HwKey copyWith({
+    KeyAttestationType? attestationType,
+    bool? gatedByUserAuth,
+    UserAuthType? userAuthType,
+  }) => HwKey(
+    alias: alias,
+    publicJwk: publicJwk,
+    keyId: keyId,
+    requestedLevel: requestedLevel,
+    effectiveLevel: effectiveLevel,
+    attestationType: attestationType ?? this.attestationType,
+    gatedByUserAuth: gatedByUserAuth ?? this.gatedByUserAuth,
+    userAuthType: userAuthType ?? this.userAuthType,
+  );
+
   @override
   String toString() =>
       'HwKey(alias: $alias, keyId: $keyId, '

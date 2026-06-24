@@ -24,6 +24,9 @@ import UIKit
 ///  - Surface a richer biometric prompt reason and handle `LAError` cases.
 public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKeysApi {
   private static let service = "ro.roeid.attested_secure_keys"
+  // Per-alias metadata (attestation type, gating) so getKeyInfo can report
+  // state that the key blob itself does not carry — survives app restarts.
+  private static let metaService = "ro.roeid.attested_secure_keys.meta"
   private static let seTag: UInt8 = 0x01 // Secure Enclave key blob
   private static let swTag: UInt8 = 0x00 // software fallback key blob
 
@@ -115,6 +118,16 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
         alias: request.alias,
         accessibility: request.ios.accessibility,
         accessGroup: request.ios.accessGroup
+      )
+
+      // Persist gating state; attestation starts as none (App Attest is a
+      // separate, on-demand step via attest()).
+      storeMeta(
+        alias: request.alias,
+        attestation: .none,
+        gatedByUserAuth: enforcedGating,
+        userAuthType: enforcedGating ? request.userAuth.type : PgUserAuthType.none,
+        accessibility: request.ios.accessibility
       )
 
       completion(.success(PgGeneratedKey(
@@ -266,6 +279,9 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           )))
           return
         }
+        // Record that this alias now has an App Attest proof, so getKeyInfo
+        // (and the UI) reflect it after restarts.
+        self.markAttested(alias: request.alias)
         completion(.success(PgAttestation(
           type: .appleAppAttest,
           encoding: .cbor,
@@ -299,13 +315,14 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           .publicKey.x963Representation
         level = .software
       }
+      let meta = loadMeta(alias: alias)
       completion(.success(PgKeyInfo(
         alias: alias,
         publicJwk: jwk(fromX963: publicX963),
         securityLevel: level,
-        attestationType: .none,
-        gatedByUserAuth: false,
-        userAuthType: .none
+        attestationType: meta?.attestation ?? .none,
+        gatedByUserAuth: meta?.gatedByUserAuth ?? false,
+        userAuthType: meta?.userAuthType ?? .none
       )))
     } catch {
       completion(.failure(PigeonError(
@@ -388,6 +405,83 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.service,
+      kSecAttrAccount as String: alias,
+    ]
+    SecItemDelete(query as CFDictionary)
+    deleteMeta(alias: alias)
+  }
+
+  // MARK: - Per-alias metadata (attestation type + gating)
+
+  private struct KeyMeta {
+    var attestation: PgAttestationType
+    var gatedByUserAuth: Bool
+    var userAuthType: PgUserAuthType
+  }
+
+  private func storeMeta(
+    alias: String,
+    attestation: PgAttestationType,
+    gatedByUserAuth: Bool,
+    userAuthType: PgUserAuthType,
+    accessibility: PgIosAccessibility
+  ) {
+    let dict: [String: Any] = [
+      "att": attestation.rawValue,
+      "gated": gatedByUserAuth,
+      "auth": userAuthType.rawValue,
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+    deleteMeta(alias: alias)
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.metaService,
+      kSecAttrAccount as String: alias,
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: accessibilityValue(accessibility),
+    ]
+    SecItemAdd(query as CFDictionary, nil)
+  }
+
+  /// Promote an existing alias's metadata to record an App Attest proof,
+  /// preserving its gating fields. No-op if the alias has no metadata.
+  private func markAttested(alias: String) {
+    guard let meta = loadMeta(alias: alias) else { return }
+    storeMeta(
+      alias: alias,
+      attestation: .appleAppAttest,
+      gatedByUserAuth: meta.gatedByUserAuth,
+      userAuthType: meta.userAuthType,
+      // App Attest binds to the device; this device-only accessibility is the
+      // safe default for the marker and matches how keys are stored.
+      accessibility: .afterFirstUnlockThisDeviceOnly
+    )
+  }
+
+  private func loadMeta(alias: String) -> KeyMeta? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.metaService,
+      kSecAttrAccount as String: alias,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var result: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+      let data = result as? Data,
+      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return nil }
+    return KeyMeta(
+      attestation: PgAttestationType(rawValue: dict["att"] as? Int ?? 2) ?? .none,
+      gatedByUserAuth: dict["gated"] as? Bool ?? false,
+      userAuthType: PgUserAuthType(rawValue: dict["auth"] as? Int ?? 0) ?? .none
+    )
+  }
+
+  private func deleteMeta(alias: String) {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.metaService,
       kSecAttrAccount as String: alias,
     ]
     SecItemDelete(query as CFDictionary)

@@ -105,7 +105,19 @@ class _DemoPageState extends State<DemoPage> {
   Future<void> _attest() => _run('attest', () async {
     // Same nonce that was bound at generateKey, so challenge == nonce.
     final att = await _keys.attest(alias: _alias, serverNonce: _demoNonce);
-    setState(() => _att = att);
+    // Re-read the now-persisted key info so the card reflects the attestation
+    // (proves the native side recorded it; survives restarts).
+    final info = await _keys.getKeyInfo(alias: _alias);
+    setState(() {
+      _att = att;
+      if (info != null) {
+        _key = _key?.copyWith(
+          attestationType: info.attestationType,
+          gatedByUserAuth: info.gatedByUserAuth,
+          userAuthType: info.userAuthType,
+        );
+      }
+    });
     _append(
       '✓ attest: type=${att.type.name}, x5c=${att.x5c.length} cert(s), '
       'raw=${att.raw?.length ?? 0} bytes',
