@@ -1,16 +1,51 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, webcrypto } from 'node:crypto';
 import { test } from 'node:test';
 
 import { encode as cborEncode } from 'cbor-x';
 
 import { verifyAttestation } from '../src/verify.js';
 
-const REGISTERED_KEY = { kty: 'EC', crv: 'P-256', x: 'x', y: 'y' };
+// `jose` (used for JWK thumbprints) relies on the Web Crypto global, which is
+// only present by default on Node 20+ — the version this package targets. Shim
+// it for older test runners; a no-op where `globalThis.crypto` already exists.
+if (!globalThis.crypto) {
+  (globalThis as { crypto?: Crypto }).crypto = webcrypto as Crypto;
+}
 
+const SE_JWK = { kty: 'EC', crv: 'P-256', x: 'x', y: 'y', alg: 'ES256' };
+const APP_ID = 'TEAMID1234.com.example.app';
+
+/** A syntactically valid EC P-256 public key PEM (signature won't match). */
+function ecPublicKeyPem(): string {
+  const { publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  return publicKey.export({ type: 'spki', format: 'pem' }).toString();
+}
+
+/** A well-formed-but-bogus assertion CBOR: 37-byte authenticatorData + a sig. */
 function assertionRaw(): string {
   const cbor = cborEncode({
-    signature: new Uint8Array([1, 2, 3]),
-    authenticatorData: new Uint8Array([4, 5, 6]),
+    signature: new Uint8Array(64),
+    authenticatorData: new Uint8Array(37),
+  });
+  return Buffer.from(cbor).toString('base64url');
+}
+
+/**
+ * A structurally well-formed App Attest object (correct CBOR shape + an authData
+ * carrying a 32-byte credId), so the decode + keyId-derivation pipeline runs.
+ * The cert chain is bogus, so the checker library rejects it — which is exactly
+ * what proves we reached real verification rather than a parse stub.
+ */
+function attestationRaw(): string {
+  const authData = Buffer.alloc(87);
+  authData[32] = 0x40; // AT flag: attested credential data present
+  authData[53] = 0x00; // credIdLen high byte
+  authData[54] = 0x20; // credIdLen low byte = 32
+  const cbor = cborEncode({
+    fmt: 'apple-appattest',
+    attStmt: { x5c: [new Uint8Array([1, 2, 3])], receipt: new Uint8Array(0) },
+    authData,
   });
   return Buffer.from(cbor).toString('base64url');
 }
@@ -47,6 +82,28 @@ test('an unconfigured trust store throws a clear error', async () => {
   );
 });
 
+test('apple-appattest without expectedJwk fails clearly', async () => {
+  const result = await verifyAttestation(
+    { type: 'apple-appattest', encoding: 'cbor', x5c: [], nonce: '', raw: 'AAAA' },
+    { expectedNonce: new Uint8Array(), appId: APP_ID },
+  );
+  assert.equal(result.verified, false);
+  assert.equal(result.attestationType, 'apple-appattest');
+  assert.match(result.reasons.join(' '), /expectedJwk is required|CBOR-decode/);
+});
+
+test('apple-appattest runs real verification on a well-formed object (bogus chain -> false)', async () => {
+  const result = await verifyAttestation(
+    { type: 'apple-appattest', encoding: 'cbor', x5c: [], nonce: '', raw: attestationRaw() },
+    { expectedNonce: new Uint8Array(), expectedJwk: SE_JWK, appId: APP_ID },
+  );
+  // Decoded, derived the keyId, and invoked the checker (no throw); the planted
+  // cert chain cannot verify against the Apple root.
+  assert.equal(result.attestationType, 'apple-appattest');
+  assert.equal(result.verified, false);
+  assert.match(result.reasons.join(' '), /verification failed/);
+});
+
 test('apple-appassert without raw CBOR fails clearly', async () => {
   const result = await verifyAttestation(
     { type: 'apple-appassert', encoding: 'cbor', x5c: [], nonce: '' },
@@ -60,7 +117,7 @@ test('apple-appassert without raw CBOR fails clearly', async () => {
 test('apple-appassert requires the registered key (routes to assertion path)', async () => {
   const result = await verifyAttestation(
     { type: 'apple-appassert', encoding: 'cbor', x5c: [], nonce: '', raw: assertionRaw() },
-    { expectedNonce: new Uint8Array() },
+    { expectedNonce: new Uint8Array(), expectedJwk: SE_JWK, appId: APP_ID },
   );
   // Reached the assertion verifier (not the attestation path) and demanded the
   // registration state an assertion needs.
@@ -68,13 +125,19 @@ test('apple-appassert requires the registered key (routes to assertion path)', a
   assert.match(result.reasons.join(' '), /registered App Attest key/);
 });
 
-test('apple-appassert with a registered key reaches verification (M2 pending)', async () => {
+test('apple-appassert with a registered key runs verification (bad sig -> false)', async () => {
   const result = await verifyAttestation(
     { type: 'apple-appassert', encoding: 'cbor', x5c: [], nonce: '', raw: assertionRaw() },
-    { expectedNonce: new Uint8Array(), registeredAppAttestKey: REGISTERED_KEY, lastSignCount: 0 },
+    {
+      expectedNonce: new Uint8Array(),
+      expectedJwk: SE_JWK,
+      appId: APP_ID,
+      registeredAppAttestKeyPem: ecPublicKeyPem(),
+      lastSignCount: 0,
+    },
   );
+  // The library actually ran (no throw); a bogus assertion does not verify.
   assert.equal(result.attestationType, 'apple-appassert');
-  // Structurally decoded; cryptographic verification is staged for M2.
   assert.equal(result.verified, false);
-  assert.match(result.reasons.join(' '), /Decoded the App Attest assertion/);
+  assert.match(result.reasons.join(' '), /assertion failed/);
 });

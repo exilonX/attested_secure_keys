@@ -24,7 +24,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "test": "node --import tsx --test test/*.test.ts",
     "verify:local": "node verify-local.mjs"
   },
   "keywords": [
@@ -37,6 +37,7 @@
   ],
   "dependencies": {
     "@peculiar/x509": "^1.14.3",
+    "appattest-checker-node": "^1.0.3",
     "asn1js": "^3.0.10",
     "cbor-x": "^1.6.4",
     "jose": "^6.2.3"

@@ -30,7 +30,8 @@ export async function verifyAttestation(
       });
 
     case 'apple-appattest':
-      assertTrustConfigured(trust);
+      // App Attest verification uses the Apple App Attest Root bundled with the
+      // checker library, so the (Google-oriented) trust store is not consulted.
       if (!attestation.raw) {
         return {
           verified: false,
@@ -43,7 +44,7 @@ export async function verifyAttestation(
         expectedNonce: opts.expectedNonce,
         expectedJwk: opts.expectedJwk,
         appId: opts.appId,
-        trust,
+        developmentEnv: opts.appAttestDevelopmentEnv ?? true,
       });
 
     case 'apple-appassert':
@@ -61,7 +62,7 @@ export async function verifyAttestation(
         expectedNonce: opts.expectedNonce,
         expectedJwk: opts.expectedJwk,
         appId: opts.appId,
-        registeredAppAttestKey: opts.registeredAppAttestKey,
+        registeredAppAttestKeyPem: opts.registeredAppAttestKeyPem,
         lastSignCount: opts.lastSignCount,
       });
 

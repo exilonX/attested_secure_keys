@@ -49,12 +49,18 @@ export interface VerifyOptions {
   /** Trust anchors; falls back to the (currently empty) pinned roots in roots.ts. */
   trust?: TrustStore;
   /**
-   * App Attest **assertion** verification only (`apple-appassert`): the public
-   * key captured from the earlier `apple-appattest` registration, plus the last
-   * `signCount` your server stored for it. An assertion carries no certificate
-   * chain, so it can only be checked against this registration state.
+   * iOS App Attest environment for attestation: `true` = sandbox/development
+   * (default), `false` = production. Must match the build's
+   * `com.apple.developer.devicecheck.appattest-environment` entitlement.
    */
-  registeredAppAttestKey?: Jwk;
+  appAttestDevelopmentEnv?: boolean;
+  /**
+   * App Attest **assertion** verification only (`apple-appassert`): the PEM
+   * public key returned by the earlier `apple-appattest` verification (field
+   * `appAttestPublicKeyPem`), which your server persisted. An assertion carries
+   * no certificate chain, so it can only be checked against this registration.
+   */
+  registeredAppAttestKeyPem?: string;
   /** Last accepted App Attest `signCount` (assertions must strictly increase it). */
   lastSignCount?: number;
 }
@@ -67,6 +73,13 @@ export interface VerifyResult {
   publicJwk?: Jwk;
   /** RFC 7638 thumbprint of the attested key. */
   keyId?: string;
+  /**
+   * iOS attestation only: the App Attest public key (PEM). Persist this keyed by
+   * device/key id to verify that device's future assertions.
+   */
+  appAttestPublicKeyPem?: string;
+  /** iOS assertion only: the verified `signCount`; persist as the new lower bound. */
+  signCount?: number;
   /** Human-readable notes and/or failure reasons. */
   reasons: string[];
 }
