@@ -207,11 +207,18 @@ enum class PgSecurityLevel(val raw: Int) {
   }
 }
 
-/** What proof of hardware origin the platform can produce for a key. */
+/**
+ * What proof of hardware origin the platform can produce for a key.
+ *
+ * `appleAppAssert` is an App Attest *assertion* (per-session, no cert chain),
+ * produced after the one-time `appleAppAttest` registration to respect Apple's
+ * attestation rate limits — verified against the key registered at attest time.
+ */
 enum class PgAttestationType(val raw: Int) {
   ANDROID_KEY_ATTESTATION(0),
   APPLE_APP_ATTEST(1),
-  NONE(2);
+  NONE(2),
+  APPLE_APP_ASSERT(3);
 
   companion object {
     fun ofRaw(raw: Int): PgAttestationType? {

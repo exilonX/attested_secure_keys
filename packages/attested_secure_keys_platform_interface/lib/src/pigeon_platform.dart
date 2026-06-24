@@ -242,6 +242,7 @@ KeyAttestationType _attTypeFromPg(PgAttestationType t) => switch (t) {
   PgAttestationType.androidKeyAttestation =>
     KeyAttestationType.androidKeyAttestation,
   PgAttestationType.appleAppAttest => KeyAttestationType.appleAppAttest,
+  PgAttestationType.appleAppAssert => KeyAttestationType.appleAppAssert,
   PgAttestationType.none => KeyAttestationType.none,
 };
 

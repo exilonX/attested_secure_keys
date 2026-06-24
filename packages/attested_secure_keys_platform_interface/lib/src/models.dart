@@ -34,11 +34,19 @@ enum KeyAttestationType {
   androidKeyAttestation,
 
   /// Apple App Attest CBOR attestation object (binds the SE key thumbprint +
-  /// server nonce). Aligns with WebAuthn `apple`.
+  /// server nonce). Aligns with WebAuthn `apple`. Produced once per App Attest
+  /// key to register it; carries the certificate chain.
   appleAppAttest,
 
   /// No hardware proof available (software key / unsupported device).
   none,
+
+  /// Apple App Attest *assertion* (CBOR): a per-session signature over the SE
+  /// key thumbprint + server nonce by the already-registered App Attest key.
+  /// Has no certificate chain — the verifier checks it against the public key
+  /// captured from the earlier [appleAppAttest] registration, plus `signCount`
+  /// monotonicity. Used after registration to respect Apple's rate limits.
+  appleAppAssert,
 }
 
 /// The OS-enforced user-presence requirement for using a key.
@@ -119,6 +127,23 @@ class HwKey {
   /// True when a server-verifiable proof of hardware origin is available.
   bool get hasHardwareAttestation => attestationType != KeyAttestationType.none;
 
+  /// Returns a copy with the given fields replaced. Useful to fold the result
+  /// of a later `attest()` or `getKeyInfo()` back into a held handle.
+  HwKey copyWith({
+    KeyAttestationType? attestationType,
+    bool? gatedByUserAuth,
+    UserAuthType? userAuthType,
+  }) => HwKey(
+    alias: alias,
+    publicJwk: publicJwk,
+    keyId: keyId,
+    requestedLevel: requestedLevel,
+    effectiveLevel: effectiveLevel,
+    attestationType: attestationType ?? this.attestationType,
+    gatedByUserAuth: gatedByUserAuth ?? this.gatedByUserAuth,
+    userAuthType: userAuthType ?? this.userAuthType,
+  );
+
   @override
   String toString() =>
       'HwKey(alias: $alias, keyId: $keyId, '
@@ -183,6 +208,7 @@ class KeyAttestation {
     'type': switch (type) {
       KeyAttestationType.androidKeyAttestation => 'android-key',
       KeyAttestationType.appleAppAttest => 'apple-appattest',
+      KeyAttestationType.appleAppAssert => 'apple-appassert',
       KeyAttestationType.none => 'none',
     },
     'encoding': switch (encoding) {

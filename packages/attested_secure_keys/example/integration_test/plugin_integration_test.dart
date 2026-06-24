@@ -40,4 +40,46 @@ void main() {
     await keys.deleteKey(alias: alias);
     expect(await keys.containsKey(alias: alias), isFalse);
   });
+
+  testWidgets('a requested auth policy is reflected and persisted', (
+    tester,
+  ) async {
+    const alias = 'it.gated.key';
+    await keys.deleteKey(alias: alias);
+
+    final caps = await keys.capabilities();
+    final key = await keys.generateKey(
+      alias: alias,
+      userAuth: const UserAuthPolicy.perUseBiometric(),
+    );
+
+    // Gating is only enforced where the platform can hardware-back it; on a
+    // simulator/emulator (software fallback) the key is honestly not gated.
+    final canHardwareGate =
+        caps.hasSecureEnclave || caps.hasTee || caps.hasStrongBox;
+    expect(key.gatedByUserAuth, canHardwareGate);
+
+    // getKeyInfo must report the same state the generate call returned —
+    // proving the native side persisted it rather than hardcoding defaults.
+    final info = await keys.getKeyInfo(alias: alias);
+    expect(info, isNotNull);
+    expect(info!.gatedByUserAuth, key.gatedByUserAuth);
+    expect(info.userAuthType, key.userAuthType);
+
+    await keys.deleteKey(alias: alias);
+  });
+
+  testWidgets('a freshly generated key is not yet attested', (tester) async {
+    const alias = 'it.attstate.key';
+    await keys.deleteKey(alias: alias);
+
+    await keys.generateKey(alias: alias);
+    final info = await keys.getKeyInfo(alias: alias);
+    expect(info, isNotNull);
+    // Attestation is a separate, on-demand step; the key starts un-attested.
+    expect(info!.attestationType, KeyAttestationType.none);
+
+    await keys.deleteKey(alias: alias);
+    expect(await keys.getKeyInfo(alias: alias), isNull);
+  });
 }

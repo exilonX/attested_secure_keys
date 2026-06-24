@@ -16,14 +16,18 @@ import UIKit
 ///  - **LocalAuthentication** for biometric/passcode gating via `SecAccessControl`.
 ///  - **DeviceCheck `DCAppAttestService`** for App Attest (iOS has no per-key
 ///    attestation; we bind our SE key by hashing its JWK thumbprint + the server
-///    nonce into the App Attest `clientDataHash`).
-///
-/// TODOs (need a device build loop / later milestones):
-///  - Cache the App Attest key id and use per-session assertions (attest once,
-///    assert per session) to respect Apple's rate limits — see spec §12.
-///  - Surface a richer biometric prompt reason and handle `LAError` cases.
+///    nonce into the App Attest `clientDataHash`). The App Attest key is
+///    registered once (id cached in the keychain) and reused for per-session
+///    assertions thereafter, to respect Apple's attestation rate limits.
 public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKeysApi {
   private static let service = "ro.roeid.attested_secure_keys"
+  // Per-alias metadata (attestation type, gating) so getKeyInfo can report
+  // state that the key blob itself does not carry — survives app restarts.
+  private static let metaService = "ro.roeid.attested_secure_keys.meta"
+  // App-wide App Attest key id (one registration per install, reused for
+  // per-session assertions). Account is fixed; the key id is the value.
+  private static let appAttestService = "ro.roeid.attested_secure_keys.appattest"
+  private static let appAttestAccount = "keyId"
   private static let seTag: UInt8 = 0x01 // Secure Enclave key blob
   private static let swTag: UInt8 = 0x00 // software fallback key blob
 
@@ -88,7 +92,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           guard let access = SecAccessControlCreateWithFlags(
             nil,
             accessibilityValue(request.ios.accessibility),
-            [.privateKeyUsage, .biometryCurrentSet],
+            accessControlFlags(for: request.userAuth.type),
             nil
           ) else {
             throw PigeonError(
@@ -115,6 +119,16 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
         alias: request.alias,
         accessibility: request.ios.accessibility,
         accessGroup: request.ios.accessGroup
+      )
+
+      // Persist gating state; attestation starts as none (App Attest is a
+      // separate, on-demand step via attest()).
+      storeMeta(
+        alias: request.alias,
+        attestation: .none,
+        gatedByUserAuth: enforcedGating,
+        userAuthType: enforcedGating ? request.userAuth.type : PgUserAuthType.none,
+        accessibility: request.ios.accessibility
       )
 
       completion(.success(PgGeneratedKey(
@@ -164,28 +178,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       }
       completion(.success(PgSignature(rawRS: FlutterStandardTypedData(bytes: raw))))
     } catch {
-      let nsError = error as NSError
-      let detail = "domain=\(nsError.domain) code=\(nsError.code)"
-      ASKLog.error("sign failed for '\(request.alias)': \(detail): \(nsError.localizedDescription)")
-      // iOS cannot cleanly distinguish "user cancelled/failed auth" from "key
-      // invalidated by a biometric change" — both surface as an LAError or an
-      // errSecAuthFailed. We map both to userNotAuthenticated (the key may still
-      // be intact) but flag the invalidation possibility in the message so the
-      // app can offer re-enrollment if it keeps failing. See KeyInvalidatedError.
-      if nsError.domain == LAError.errorDomain
-        || (nsError.domain == NSOSStatusErrorDomain && nsError.code == Int(errSecAuthFailed))
-      {
-        completion(.failure(PigeonError(
-          code: Codes.userNotAuth,
-          message: "User authentication failed or was cancelled (\(detail)): "
-            + nsError.localizedDescription
-            + ". If the device's biometrics changed, this key may have been "
-            + "invalidated — if it keeps failing, regenerate the key and re-enroll.",
-          details: request.alias
-        )))
-      } else {
-        completion(.failure(keyOpError("sign", error, alias: request.alias)))
-      }
+      completion(.failure(Self.mapKeyUseError(error)))
     }
   }
 
@@ -232,6 +225,46 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     let clientDataHash = Data(SHA256.hash(data: clientData))
 
     let appAttest = DCAppAttestService.shared
+
+    // Attest once, assert per session: App Attest rate-limits attestation, so we
+    // register the App Attest key a single time (caching its id) and produce a
+    // lightweight assertion for every subsequent call.
+    if let keyId = loadAppAttestKeyId() {
+      appAttest.generateAssertion(keyId, clientDataHash: clientDataHash) { assertion, error in
+        if let error = error {
+          // The cached App Attest key is gone/unusable (e.g. reinstall): drop it
+          // so the next call re-registers cleanly.
+          self.clearAppAttestKeyId()
+          completion(.failure(PigeonError(
+            code: Codes.attestationUnavailable,
+            message: "App Attest assertion failed (\(error.localizedDescription)). "
+              + "The registration was reset; retry to re-attest.",
+            details: nil
+          )))
+          return
+        }
+        guard let assertion = assertion else {
+          completion(.failure(PigeonError(
+            code: Codes.attestationUnavailable,
+            message: "App Attest returned a nil assertion object.",
+            details: nil
+          )))
+          return
+        }
+        self.markAttested(alias: request.alias)
+        completion(.success(PgAttestation(
+          type: .appleAppAssert,
+          encoding: .cbor,
+          x5c: [],
+          raw: FlutterStandardTypedData(bytes: assertion),
+          attestedKey: attestedKey,
+          nonce: request.nonce
+        )))
+      }
+      return
+    }
+
+    // First time on this install: generate + attest the App Attest key.
     appAttest.generateKey { keyId, error in
       if let error = error {
         let nsError = error as NSError
@@ -255,7 +288,6 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
         )))
         return
       }
-      // TODO: persist keyId and switch to per-session assertions (rate limits).
       appAttest.attestKey(keyId, clientDataHash: clientDataHash) { attestation, error in
         if let error = error {
           let nsError = error as NSError
@@ -279,6 +311,11 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           )))
           return
         }
+        // Cache the registered key id for future per-session assertions, and
+        // record that this alias now has an App Attest proof (so getKeyInfo /
+        // the UI reflect it after restarts).
+        self.storeAppAttestKeyId(keyId)
+        self.markAttested(alias: request.alias)
         completion(.success(PgAttestation(
           type: .appleAppAttest,
           encoding: .cbor,
@@ -312,13 +349,14 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           .publicKey.x963Representation
         level = .software
       }
+      let meta = loadMeta(alias: alias)
       completion(.success(PgKeyInfo(
         alias: alias,
         publicJwk: jwk(fromX963: publicX963),
         securityLevel: level,
-        attestationType: .none,
-        gatedByUserAuth: false,
-        userAuthType: .none
+        attestationType: meta?.attestation ?? .none,
+        gatedByUserAuth: meta?.gatedByUserAuth ?? false,
+        userAuthType: meta?.userAuthType ?? .none
       )))
     } catch {
       completion(.failure(keyOpError("getKeyInfo", error, alias: alias)))
@@ -400,6 +438,121 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       kSecAttrAccount as String: alias,
     ]
     SecItemDelete(query as CFDictionary)
+    deleteMeta(alias: alias)
+  }
+
+  // MARK: - Per-alias metadata (attestation type + gating)
+
+  private struct KeyMeta {
+    var attestation: PgAttestationType
+    var gatedByUserAuth: Bool
+    var userAuthType: PgUserAuthType
+  }
+
+  private func storeMeta(
+    alias: String,
+    attestation: PgAttestationType,
+    gatedByUserAuth: Bool,
+    userAuthType: PgUserAuthType,
+    accessibility: PgIosAccessibility
+  ) {
+    let dict: [String: Any] = [
+      "att": attestation.rawValue,
+      "gated": gatedByUserAuth,
+      "auth": userAuthType.rawValue,
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+    deleteMeta(alias: alias)
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.metaService,
+      kSecAttrAccount as String: alias,
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: accessibilityValue(accessibility),
+    ]
+    SecItemAdd(query as CFDictionary, nil)
+  }
+
+  /// Promote an existing alias's metadata to record an App Attest proof,
+  /// preserving its gating fields. No-op if the alias has no metadata.
+  private func markAttested(alias: String) {
+    guard let meta = loadMeta(alias: alias) else { return }
+    storeMeta(
+      alias: alias,
+      attestation: .appleAppAttest,
+      gatedByUserAuth: meta.gatedByUserAuth,
+      userAuthType: meta.userAuthType,
+      // App Attest binds to the device; this device-only accessibility is the
+      // safe default for the marker and matches how keys are stored.
+      accessibility: .afterFirstUnlockThisDeviceOnly
+    )
+  }
+
+  private func loadMeta(alias: String) -> KeyMeta? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.metaService,
+      kSecAttrAccount as String: alias,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var result: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+      let data = result as? Data,
+      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return nil }
+    return KeyMeta(
+      attestation: PgAttestationType(rawValue: dict["att"] as? Int ?? 2) ?? .none,
+      gatedByUserAuth: dict["gated"] as? Bool ?? false,
+      userAuthType: PgUserAuthType(rawValue: dict["auth"] as? Int ?? 0) ?? .none
+    )
+  }
+
+  private func deleteMeta(alias: String) {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.metaService,
+      kSecAttrAccount as String: alias,
+    ]
+    SecItemDelete(query as CFDictionary)
+  }
+
+  // MARK: - App Attest key id (app-wide, for attest-once / assert-per-session)
+
+  private func storeAppAttestKeyId(_ keyId: String) {
+    clearAppAttestKeyId()
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.appAttestService,
+      kSecAttrAccount as String: Self.appAttestAccount,
+      kSecValueData as String: Data(keyId.utf8),
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+    ]
+    SecItemAdd(query as CFDictionary, nil)
+  }
+
+  private func loadAppAttestKeyId() -> String? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.appAttestService,
+      kSecAttrAccount as String: Self.appAttestAccount,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var result: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+      let data = result as? Data
+    else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  private func clearAppAttestKeyId() {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.appAttestService,
+      kSecAttrAccount as String: Self.appAttestAccount,
+    ]
+    SecItemDelete(query as CFDictionary)
   }
 
   private func accessibilityValue(_ accessibility: PgIosAccessibility) -> CFString {
@@ -409,6 +562,84 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     case .afterFirstUnlockThisDeviceOnly:
       return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     }
+  }
+
+  /// Maps the cross-platform user-auth policy to Secure Enclave access-control
+  /// flags, mirroring the Android `applyUserAuth` mapping. `.privateKeyUsage`
+  /// is always required for an SE signing key.
+  ///  - `deviceCredential`      → device passcode only.
+  ///  - `biometricStrong`       → the *current* enrolled biometric set; the key
+  ///    is invalidated automatically if that set changes (add/remove a face or
+  ///    fingerprint), which is the desired strong-binding behaviour.
+  ///  - `biometricOrCredential` → current biometric set OR device passcode, so
+  ///    the user keeps a passcode fallback while preserving the strong binding.
+  ///  - `none`                  → unreachable here (gating is only applied when
+  ///    a policy was requested); treated as biometric for safety.
+  func accessControlFlags(
+    for type: PgUserAuthType
+  ) -> SecAccessControlCreateFlags {
+    switch type {
+    case .deviceCredential:
+      return [.privateKeyUsage, .devicePasscode]
+    case .biometricOrCredential:
+      return [.privateKeyUsage, .biometryCurrentSet, .or, .devicePasscode]
+    case .biometricStrong, .none:
+      return [.privateKeyUsage, .biometryCurrentSet]
+    }
+  }
+
+  /// Classifies an error thrown while *using* a gated key (sign/load) into a
+  /// stable error code. Distinguishes user-driven cancellation (retryable),
+  /// biometry lockout (retryable after passcode unlock), and a permanently
+  /// invalidated key (the enrolled biometric set changed, or the required
+  /// authentication method was removed — the caller must regenerate the key).
+  static func mapKeyUseError(_ error: Error) -> PigeonError {
+    let ns = error as NSError
+    if ns.domain == LAError.errorDomain, let code = LAError.Code(rawValue: ns.code) {
+      switch code {
+      case .userCancel, .systemCancel, .appCancel, .userFallback, .authenticationFailed:
+        return PigeonError(
+          code: Codes.userNotAuth,
+          message: "User authentication failed or was cancelled.",
+          details: nil
+        )
+      case .biometryLockout:
+        return PigeonError(
+          code: Codes.userNotAuth,
+          message: "Biometry is locked out; unlock with the device passcode and retry.",
+          details: nil
+        )
+      case .biometryNotEnrolled, .biometryNotAvailable, .passcodeNotSet:
+        return PigeonError(
+          code: Codes.keyInvalidated,
+          message: "The key's required authentication is no longer available "
+            + "(biometry or passcode was removed). Regenerate the key.",
+          details: nil
+        )
+      default:
+        return PigeonError(
+          code: Codes.userNotAuth,
+          message: error.localizedDescription,
+          details: nil
+        )
+      }
+    }
+    // A Secure Enclave key bound to `.biometryCurrentSet` is invalidated when the
+    // enrolled biometric set changes; CryptoKit/Security surface this as an
+    // auth-failed OSStatus rather than an LAError.
+    if ns.domain == NSOSStatusErrorDomain, ns.code == Int(errSecAuthFailed) {
+      return PigeonError(
+        code: Codes.keyInvalidated,
+        message: "The key was invalidated because the device's biometric "
+          + "enrollment changed. Regenerate the key.",
+        details: nil
+      )
+    }
+    return PigeonError(
+      code: Codes.keyOpFailed,
+      message: error.localizedDescription,
+      details: nil
+    )
   }
 
   // MARK: - Helpers
@@ -481,6 +712,7 @@ private enum Codes {
   static let keyInvalidated = "key_invalidated"
   static let attestationUnavailable = "attestation_unavailable"
   static let keyOpFailed = "key_operation_failed"
+  static let keyInvalidated = "key_invalidated"
 }
 
 /// Lightweight logging — visible in Console.app / Xcode under the tag, mirroring
