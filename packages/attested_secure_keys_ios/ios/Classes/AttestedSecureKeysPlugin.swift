@@ -712,7 +712,6 @@ private enum Codes {
   static let keyInvalidated = "key_invalidated"
   static let attestationUnavailable = "attestation_unavailable"
   static let keyOpFailed = "key_operation_failed"
-  static let keyInvalidated = "key_invalidated"
 }
 
 /// Lightweight logging — visible in Console.app / Xcode under the tag, mirroring
