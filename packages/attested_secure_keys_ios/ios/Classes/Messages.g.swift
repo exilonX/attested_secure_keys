@@ -194,10 +194,15 @@ enum PgSecurityLevel: Int, CaseIterable {
 }
 
 /// What proof of hardware origin the platform can produce for a key.
+///
+/// `appleAppAssert` is an App Attest *assertion* (per-session, no cert chain),
+/// produced after the one-time `appleAppAttest` registration to respect Apple's
+/// attestation rate limits — verified against the key registered at attest time.
 enum PgAttestationType: Int, CaseIterable {
   case androidKeyAttestation = 0
   case appleAppAttest = 1
   case none = 2
+  case appleAppAssert = 3
 }
 
 /// User-presence/verification requirement enforced by the OS on key use.

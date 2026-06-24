@@ -1,5 +1,5 @@
 import { verifyAndroidKeyAttestation } from './android.js';
-import { verifyAppleAppAttest } from './ios.js';
+import { verifyAppleAppAssert, verifyAppleAppAttest } from './ios.js';
 import { assertTrustConfigured, defaultTrustStore } from './roots.js';
 import type {
   NormalizedAttestation,
@@ -44,6 +44,25 @@ export async function verifyAttestation(
         expectedJwk: opts.expectedJwk,
         appId: opts.appId,
         trust,
+      });
+
+    case 'apple-appassert':
+      // An assertion carries no cert chain; it is checked against the App Attest
+      // key registered at attestation time, so trust roots are not consulted.
+      if (!attestation.raw) {
+        return {
+          verified: false,
+          attestationType: 'apple-appassert',
+          reasons: ['Missing raw App Attest assertion CBOR.'],
+        };
+      }
+      return verifyAppleAppAssert({
+        cborBase64Url: attestation.raw,
+        expectedNonce: opts.expectedNonce,
+        expectedJwk: opts.expectedJwk,
+        appId: opts.appId,
+        registeredAppAttestKey: opts.registeredAppAttestKey,
+        lastSignCount: opts.lastSignCount,
       });
 
     case 'none':

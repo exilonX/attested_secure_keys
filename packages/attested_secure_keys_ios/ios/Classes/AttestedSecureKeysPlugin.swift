@@ -16,17 +16,18 @@ import UIKit
 ///  - **LocalAuthentication** for biometric/passcode gating via `SecAccessControl`.
 ///  - **DeviceCheck `DCAppAttestService`** for App Attest (iOS has no per-key
 ///    attestation; we bind our SE key by hashing its JWK thumbprint + the server
-///    nonce into the App Attest `clientDataHash`).
-///
-/// TODOs (need a device build loop / later milestones):
-///  - Cache the App Attest key id and use per-session assertions (attest once,
-///    assert per session) to respect Apple's rate limits — see spec §12.
-///  - Surface a richer biometric prompt reason and handle `LAError` cases.
+///    nonce into the App Attest `clientDataHash`). The App Attest key is
+///    registered once (id cached in the keychain) and reused for per-session
+///    assertions thereafter, to respect Apple's attestation rate limits.
 public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKeysApi {
   private static let service = "ro.roeid.attested_secure_keys"
   // Per-alias metadata (attestation type, gating) so getKeyInfo can report
   // state that the key blob itself does not carry — survives app restarts.
   private static let metaService = "ro.roeid.attested_secure_keys.meta"
+  // App-wide App Attest key id (one registration per install, reused for
+  // per-session assertions). Account is fixed; the key id is the value.
+  private static let appAttestService = "ro.roeid.attested_secure_keys.appattest"
+  private static let appAttestAccount = "keyId"
   private static let seTag: UInt8 = 0x01 // Secure Enclave key blob
   private static let swTag: UInt8 = 0x00 // software fallback key blob
 
@@ -231,6 +232,46 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     let clientDataHash = Data(SHA256.hash(data: clientData))
 
     let appAttest = DCAppAttestService.shared
+
+    // Attest once, assert per session: App Attest rate-limits attestation, so we
+    // register the App Attest key a single time (caching its id) and produce a
+    // lightweight assertion for every subsequent call.
+    if let keyId = loadAppAttestKeyId() {
+      appAttest.generateAssertion(keyId, clientDataHash: clientDataHash) { assertion, error in
+        if let error = error {
+          // The cached App Attest key is gone/unusable (e.g. reinstall): drop it
+          // so the next call re-registers cleanly.
+          self.clearAppAttestKeyId()
+          completion(.failure(PigeonError(
+            code: Codes.attestationUnavailable,
+            message: "App Attest assertion failed (\(error.localizedDescription)). "
+              + "The registration was reset; retry to re-attest.",
+            details: nil
+          )))
+          return
+        }
+        guard let assertion = assertion else {
+          completion(.failure(PigeonError(
+            code: Codes.attestationUnavailable,
+            message: "App Attest returned a nil assertion object.",
+            details: nil
+          )))
+          return
+        }
+        self.markAttested(alias: request.alias)
+        completion(.success(PgAttestation(
+          type: .appleAppAssert,
+          encoding: .cbor,
+          x5c: [],
+          raw: FlutterStandardTypedData(bytes: assertion),
+          attestedKey: attestedKey,
+          nonce: request.nonce
+        )))
+      }
+      return
+    }
+
+    // First time on this install: generate + attest the App Attest key.
     appAttest.generateKey { keyId, error in
       if let error = error {
         completion(.failure(PigeonError(
@@ -248,7 +289,6 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
         )))
         return
       }
-      // TODO: persist keyId and switch to per-session assertions (rate limits).
       appAttest.attestKey(keyId, clientDataHash: clientDataHash) { attestation, error in
         if let error = error {
           completion(.failure(PigeonError(
@@ -266,8 +306,10 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           )))
           return
         }
-        // Record that this alias now has an App Attest proof, so getKeyInfo
-        // (and the UI) reflect it after restarts.
+        // Cache the registered key id for future per-session assertions, and
+        // record that this alias now has an App Attest proof (so getKeyInfo /
+        // the UI reflect it after restarts).
+        self.storeAppAttestKeyId(keyId)
         self.markAttested(alias: request.alias)
         completion(.success(PgAttestation(
           type: .appleAppAttest,
@@ -470,6 +512,44 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.metaService,
       kSecAttrAccount as String: alias,
+    ]
+    SecItemDelete(query as CFDictionary)
+  }
+
+  // MARK: - App Attest key id (app-wide, for attest-once / assert-per-session)
+
+  private func storeAppAttestKeyId(_ keyId: String) {
+    clearAppAttestKeyId()
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.appAttestService,
+      kSecAttrAccount as String: Self.appAttestAccount,
+      kSecValueData as String: Data(keyId.utf8),
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+    ]
+    SecItemAdd(query as CFDictionary, nil)
+  }
+
+  private func loadAppAttestKeyId() -> String? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.appAttestService,
+      kSecAttrAccount as String: Self.appAttestAccount,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var result: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+      let data = result as? Data
+    else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  private func clearAppAttestKeyId() {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.appAttestService,
+      kSecAttrAccount as String: Self.appAttestAccount,
     ]
     SecItemDelete(query as CFDictionary)
   }

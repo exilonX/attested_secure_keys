@@ -12,7 +12,7 @@ export interface Jwk {
  * device (see the Flutter package, §8 of the spec).
  */
 export interface NormalizedAttestation {
-  type: 'android-key' | 'apple-appattest' | 'none';
+  type: 'android-key' | 'apple-appattest' | 'apple-appassert' | 'none';
   encoding: 'x5c-der' | 'cbor' | 'jwt';
   /** Android: cert chain as base64 DER (leaf first). */
   x5c: string[];
@@ -48,6 +48,15 @@ export interface VerifyOptions {
   minSecurityLevel?: SecurityLevel;
   /** Trust anchors; falls back to the (currently empty) pinned roots in roots.ts. */
   trust?: TrustStore;
+  /**
+   * App Attest **assertion** verification only (`apple-appassert`): the public
+   * key captured from the earlier `apple-appattest` registration, plus the last
+   * `signCount` your server stored for it. An assertion carries no certificate
+   * chain, so it can only be checked against this registration state.
+   */
+  registeredAppAttestKey?: Jwk;
+  /** Last accepted App Attest `signCount` (assertions must strictly increase it). */
+  lastSignCount?: number;
 }
 
 export interface VerifyResult {

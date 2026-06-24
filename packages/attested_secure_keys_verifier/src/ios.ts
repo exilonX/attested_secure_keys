@@ -12,10 +12,28 @@ export interface IosVerifyInput {
   trust: TrustStore;
 }
 
+export interface IosAssertInput {
+  /** base64url App Attest assertion CBOR object. */
+  cborBase64Url: string;
+  expectedNonce: Uint8Array;
+  expectedJwk?: Jwk;
+  /** "<TeamID>.<BundleID>". */
+  appId?: string;
+  /** Public key captured from the prior `apple-appattest` registration. */
+  registeredAppAttestKey?: Jwk;
+  /** Last accepted `signCount`; the assertion must strictly exceed it. */
+  lastSignCount?: number;
+}
+
 interface AppAttestObject {
   fmt?: string;
   attStmt?: { x5c?: Uint8Array[]; receipt?: Uint8Array };
   authData?: Uint8Array;
+}
+
+interface AppAttestAssertion {
+  signature?: Uint8Array;
+  authenticatorData?: Uint8Array;
 }
 
 /**
@@ -59,8 +77,62 @@ export async function verifyAppleAppAttest(
   };
 }
 
+/**
+ * Verify an iOS App Attest **assertion** (`apple-appassert`) — the per-session
+ * artifact produced after the one-time attestation, to respect Apple's rate
+ * limits. Unlike an attestation it carries no certificate chain: it is a
+ * signature over `SHA256(authenticatorData ‖ clientDataHash)` by the App Attest
+ * key registered earlier, where `clientData = (JWK thumbprint ‖ serverNonce)`.
+ *
+ * Implemented here: CBOR decode + structural checks. The cryptographic
+ * verification is `TODO(M2)` (matching {@link verifyAppleAppAttest}) and the
+ * function returns `verified: false` until it exists. It additionally requires
+ * the registration state (`registeredAppAttestKey`) the server stored at
+ * attest time — an assertion is not self-contained.
+ */
+export async function verifyAppleAppAssert(
+  input: IosAssertInput,
+): Promise<VerifyResult> {
+  let obj: AppAttestAssertion;
+  try {
+    obj = cborDecode(b64urlToBytes(input.cborBase64Url)) as AppAttestAssertion;
+  } catch (err) {
+    return assertFail(`Could not CBOR-decode the App Attest assertion: ${describe(err)}`);
+  }
+
+  if (!obj.signature || !obj.authenticatorData) {
+    return assertFail('App Attest assertion is missing signature / authenticatorData.');
+  }
+  if (!input.registeredAppAttestKey) {
+    return assertFail(
+      'No registered App Attest key supplied; an assertion can only be verified ' +
+        'against the public key captured at attestation time.',
+    );
+  }
+
+  const reasons = [
+    'Decoded the App Attest assertion CBOR object.',
+    'TODO(M2): verify signature over SHA256(authenticatorData ‖ clientDataHash) ' +
+      'with the registered App Attest public key, where clientData = ' +
+      '(JWK thumbprint ‖ serverNonce).',
+    'TODO(M2): verify RP-ID hash == SHA256(appId).',
+    'TODO(M2): verify signCount strictly increases past lastSignCount.',
+  ];
+
+  return {
+    verified: false,
+    attestationType: 'apple-appassert',
+    securityLevel: 'secureEnclave',
+    reasons,
+  };
+}
+
 function iosFail(reason: string): VerifyResult {
   return { verified: false, attestationType: 'apple-appattest', reasons: [reason] };
+}
+
+function assertFail(reason: string): VerifyResult {
+  return { verified: false, attestationType: 'apple-appassert', reasons: [reason] };
 }
 
 function b64urlToBytes(s: string): Uint8Array {
