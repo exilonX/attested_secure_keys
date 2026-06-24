@@ -178,6 +178,11 @@ AttestedSecureKeysException _translate(PlatformException e) {
         e.message ?? 'Hardware attestation is unavailable on this device.',
         code: e.code,
       );
+    case ErrorCodes.keyInvalidated:
+      return KeyInvalidatedError(
+        e.message ?? 'The key was permanently invalidated; regenerate it.',
+        code: e.code,
+      );
     default:
       return KeyOperationError(
         e.message ?? 'The key operation failed.',

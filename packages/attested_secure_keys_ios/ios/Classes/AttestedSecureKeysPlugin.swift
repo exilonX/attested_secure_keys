@@ -91,7 +91,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
           guard let access = SecAccessControlCreateWithFlags(
             nil,
             accessibilityValue(request.ios.accessibility),
-            [.privateKeyUsage, .biometryCurrentSet],
+            accessControlFlags(for: request.userAuth.type),
             nil
           ) else {
             throw PigeonError(
@@ -180,20 +180,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       }
       completion(.success(PgSignature(rawRS: FlutterStandardTypedData(bytes: raw))))
     } catch {
-      let nsError = error as NSError
-      if nsError.domain == LAError.errorDomain {
-        completion(.failure(PigeonError(
-          code: Codes.userNotAuth,
-          message: "User authentication failed or was cancelled.",
-          details: nil
-        )))
-      } else {
-        completion(.failure(PigeonError(
-          code: Codes.keyOpFailed,
-          message: error.localizedDescription,
-          details: nil
-        )))
-      }
+      completion(.failure(Self.mapKeyUseError(error)))
     }
   }
 
@@ -496,6 +483,84 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     }
   }
 
+  /// Maps the cross-platform user-auth policy to Secure Enclave access-control
+  /// flags, mirroring the Android `applyUserAuth` mapping. `.privateKeyUsage`
+  /// is always required for an SE signing key.
+  ///  - `deviceCredential`      → device passcode only.
+  ///  - `biometricStrong`       → the *current* enrolled biometric set; the key
+  ///    is invalidated automatically if that set changes (add/remove a face or
+  ///    fingerprint), which is the desired strong-binding behaviour.
+  ///  - `biometricOrCredential` → current biometric set OR device passcode, so
+  ///    the user keeps a passcode fallback while preserving the strong binding.
+  ///  - `none`                  → unreachable here (gating is only applied when
+  ///    a policy was requested); treated as biometric for safety.
+  func accessControlFlags(
+    for type: PgUserAuthType
+  ) -> SecAccessControlCreateFlags {
+    switch type {
+    case .deviceCredential:
+      return [.privateKeyUsage, .devicePasscode]
+    case .biometricOrCredential:
+      return [.privateKeyUsage, .biometryCurrentSet, .or, .devicePasscode]
+    case .biometricStrong, .none:
+      return [.privateKeyUsage, .biometryCurrentSet]
+    }
+  }
+
+  /// Classifies an error thrown while *using* a gated key (sign/load) into a
+  /// stable error code. Distinguishes user-driven cancellation (retryable),
+  /// biometry lockout (retryable after passcode unlock), and a permanently
+  /// invalidated key (the enrolled biometric set changed, or the required
+  /// authentication method was removed — the caller must regenerate the key).
+  static func mapKeyUseError(_ error: Error) -> PigeonError {
+    let ns = error as NSError
+    if ns.domain == LAError.errorDomain, let code = LAError.Code(rawValue: ns.code) {
+      switch code {
+      case .userCancel, .systemCancel, .appCancel, .userFallback, .authenticationFailed:
+        return PigeonError(
+          code: Codes.userNotAuth,
+          message: "User authentication failed or was cancelled.",
+          details: nil
+        )
+      case .biometryLockout:
+        return PigeonError(
+          code: Codes.userNotAuth,
+          message: "Biometry is locked out; unlock with the device passcode and retry.",
+          details: nil
+        )
+      case .biometryNotEnrolled, .biometryNotAvailable, .passcodeNotSet:
+        return PigeonError(
+          code: Codes.keyInvalidated,
+          message: "The key's required authentication is no longer available "
+            + "(biometry or passcode was removed). Regenerate the key.",
+          details: nil
+        )
+      default:
+        return PigeonError(
+          code: Codes.userNotAuth,
+          message: error.localizedDescription,
+          details: nil
+        )
+      }
+    }
+    // A Secure Enclave key bound to `.biometryCurrentSet` is invalidated when the
+    // enrolled biometric set changes; CryptoKit/Security surface this as an
+    // auth-failed OSStatus rather than an LAError.
+    if ns.domain == NSOSStatusErrorDomain, ns.code == Int(errSecAuthFailed) {
+      return PigeonError(
+        code: Codes.keyInvalidated,
+        message: "The key was invalidated because the device's biometric "
+          + "enrollment changed. Regenerate the key.",
+        details: nil
+      )
+    }
+    return PigeonError(
+      code: Codes.keyOpFailed,
+      message: error.localizedDescription,
+      details: nil
+    )
+  }
+
   // MARK: - Helpers
 
   private func jwk(fromX963 data: Data) -> PgJwk {
@@ -547,4 +612,5 @@ private enum Codes {
   static let keyNotFound = "key_not_found"
   static let attestationUnavailable = "attestation_unavailable"
   static let keyOpFailed = "key_operation_failed"
+  static let keyInvalidated = "key_invalidated"
 }

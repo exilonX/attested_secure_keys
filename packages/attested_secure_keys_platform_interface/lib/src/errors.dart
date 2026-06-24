@@ -57,6 +57,18 @@ class KeyOperationError extends AttestedSecureKeysException {
   const KeyOperationError(super.message, {super.code});
 }
 
+/// Thrown when a key can no longer be used because its required authentication
+/// changed out from under it — e.g. the enrolled biometric set changed (iOS
+/// `biometryCurrentSet` / Android `KeyPermanentlyInvalidatedException`) or the
+/// passcode/biometry it was bound to was removed.
+///
+/// Unlike [UserNotAuthenticatedError] this is **not** retryable: the key is
+/// permanently unusable and the caller must regenerate it.
+class KeyInvalidatedError extends AttestedSecureKeysException {
+  /// Creates the error.
+  const KeyInvalidatedError(super.message, {super.code});
+}
+
 /// Stable platform error codes shared between the native side and Dart.
 abstract final class ErrorCodes {
   /// Requested minimum security level could not be met.
@@ -73,4 +85,7 @@ abstract final class ErrorCodes {
 
   /// Unexpected failure during a key operation.
   static const String keyOperationFailed = 'key_operation_failed';
+
+  /// Key permanently invalidated (biometric enrollment changed / auth removed).
+  static const String keyInvalidated = 'key_invalidated';
 }

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.security.keystore.UserNotAuthenticatedException
 import android.util.Base64
@@ -199,6 +200,19 @@ class AttestedSecureKeysPlugin :
       signature.initSign(entry.privateKey)
     } catch (e: FlutterError) {
       callback(Result.failure(e))
+      return
+    } catch (e: KeyPermanentlyInvalidatedException) {
+      // Biometric enrollment changed since the key was created: it is gone for good.
+      callback(
+        Result.failure(
+          FlutterError(
+            Codes.KEY_INVALIDATED,
+            "The key was invalidated because the device's biometric enrollment " +
+              "changed. Regenerate the key.",
+            null,
+          ),
+        ),
+      )
       return
     } catch (e: Exception) {
       callback(Result.failure(FlutterError(Codes.KEY_OP_FAILED, e.message, null)))
@@ -604,6 +618,7 @@ private object Codes {
   const val KEY_NOT_FOUND = "key_not_found"
   const val ATTESTATION_UNAVAILABLE = "attestation_unavailable"
   const val KEY_OP_FAILED = "key_operation_failed"
+  const val KEY_INVALIDATED = "key_invalidated"
 }
 
 /** Dart `KeySecurityLevel` enum names, used as FlutterError `details`. */
