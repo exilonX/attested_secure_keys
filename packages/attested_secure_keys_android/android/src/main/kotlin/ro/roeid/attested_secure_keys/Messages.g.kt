@@ -1046,7 +1046,23 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
 }
 
 
-/** Generated interface from Pigeon that represents a handler of messages from Flutter. */
+/**
+ * Every method carries
+ * `@TaskQueue(type: TaskQueueType.serialBackgroundThread)`: Keystore /
+ * Secure-Enclave work (key generation — seconds on StrongBox —, signing,
+ * attestation chain serialization) is heavy and MUST NOT run on the Flutter
+ * platform (main/UI) thread, where it would jank or trip an ANR. Pigeon
+ * dispatches all annotated methods on a SINGLE shared serial background thread,
+ * which both moves them off the UI thread AND serializes secure-hardware access
+ * (Keymaster/StrongBox is single-flight anyway), giving deterministic ordering.
+ *
+ * The biometric prompt is the one thing that must touch the UI thread; the
+ * native `sign` implementation re-dispatches `BiometricPrompt.authenticate`
+ * (Android) to the main thread itself, so gating still works transparently —
+ * callers do nothing.
+ *
+ * Generated interface from Pigeon that represents a handler of messages from Flutter.
+ */
 interface AttestedSecureKeysApi {
   /**
    * Generate a NEW non-exportable EC P-256 key in the strongest available
@@ -1077,8 +1093,9 @@ interface AttestedSecureKeysApi {
     @JvmOverloads
     fun setUp(binaryMessenger: BinaryMessenger, api: AttestedSecureKeysApi?, messageChannelSuffix: String = "") {
       val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
+      val taskQueue = binaryMessenger.makeBackgroundTaskQueue()
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.generateKey$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.generateKey$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1098,7 +1115,7 @@ interface AttestedSecureKeysApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.sign$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.sign$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1118,7 +1135,7 @@ interface AttestedSecureKeysApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.attest$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.attest$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1138,7 +1155,7 @@ interface AttestedSecureKeysApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.getKeyInfo$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.getKeyInfo$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1158,7 +1175,7 @@ interface AttestedSecureKeysApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.containsKey$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.containsKey$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1175,7 +1192,7 @@ interface AttestedSecureKeysApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.deleteKey$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.deleteKey$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
@@ -1194,7 +1211,7 @@ interface AttestedSecureKeysApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.listAliases$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.listAliases$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
             api.listAliases{ result: Result<List<String>> ->
@@ -1212,7 +1229,7 @@ interface AttestedSecureKeysApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.capabilities$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.capabilities$separatedMessageChannelSuffix", codec, taskQueue)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
             api.capabilities{ result: Result<PgCapabilities> ->

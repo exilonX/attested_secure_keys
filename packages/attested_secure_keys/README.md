@@ -12,10 +12,15 @@ actually achieved — the library never silently downgrades.
 > and use keys that can't be exfiltrated. Modeled on the ergonomics of
 > `flutter_secure_storage` — but for *keys*, not data.
 
-<!-- Badges (enable once published):
+[![CI](https://github.com/exilonX/attested_secure_keys/actions/workflows/ci.yml/badge.svg)](https://github.com/exilonX/attested_secure_keys/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/exilonX/attested_secure_keys/branch/main/graph/badge.svg)](https://codecov.io/gh/exilonX/attested_secure_keys)
 [![pub package](https://img.shields.io/pub/v/attested_secure_keys.svg)](https://pub.dev/packages/attested_secure_keys)
+[![pub points](https://img.shields.io/pub/points/attested_secure_keys)](https://pub.dev/packages/attested_secure_keys/score)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
--->
+[![style: flutter_lints](https://img.shields.io/badge/style-flutter__lints-40c4ff.svg)](https://pub.dev/packages/flutter_lints)
+
+<!-- The pub.dev and Codecov badges activate after the first publish / coverage upload. -->
+
 
 ## Why this exists
 
@@ -293,8 +298,8 @@ All aliases this library manages on the device.
   `.strongBoxRequired()`), `IosKeyOptions` (`accessibility`, `accessGroup`),
   `UserAuthPolicy` (`.none`, `.perUseBiometric()`, `.timeBound(Duration)`).
 - **Errors** — `HwKeyUnsupportedError` (has `bestAvailable`),
-  `UserNotAuthenticatedError`, `KeyNotFoundError`, `AttestationUnavailableError`,
-  `KeyOperationError`.
+  `UserNotAuthenticatedError`, `KeyNotFoundError`, `KeyInvalidatedError`,
+  `AttestationUnavailableError`, `KeyOperationError`. See *Error handling* below.
 
 ### Android setup
 
@@ -312,6 +317,101 @@ class MainActivity : FlutterFragmentActivity()
 A federated plugin — depend only on **`attested_secure_keys`**. It pulls in
 `attested_secure_keys_platform_interface` (the contract + model),
 `attested_secure_keys_android`, and `attested_secure_keys_ios`.
+
+## Error handling
+
+Every failure is a typed `AttestedSecureKeysException` subclass — nothing is
+swallowed. Each carries a stable `code` ([ErrorCodes]) and `message`; unexpected
+failures also include the **native exception type** in `message` and the **native
+stack trace** in `details`, and the full stack is logged natively under the
+`AttestedSecureKeys` tag (`adb logcat -s AttestedSecureKeys`, or Console.app on
+iOS). So when something breaks you get the complete picture, not an opaque
+"operation failed".
+
+| Exception | `code` | When | What to do |
+|---|---|---|---|
+| `HwKeyUnsupportedError` | `unsupported_security_level` | `generateKey` floor can't be met | Read `bestAvailable`; degrade or deny |
+| `UserNotAuthenticatedError` | `user_not_authenticated` | Gated `sign` cancelled / failed / lockout | Key is intact — prompt again and retry |
+| `KeyNotFoundError` | `key_not_found` | Alias doesn't exist (`sign`/`attest`) | Re-generate / re-enroll |
+| `KeyInvalidatedError` | `key_invalidated` | Key destroyed by a biometric/credential change | **Generate a new key and re-enroll** (see below) |
+| `AttestationUnavailableError` | `attestation_unavailable` | No attestation (iOS App Attest unsupported/offline) | Apply a degraded server policy |
+| `KeyOperationError` | `key_operation_failed` | Any other native failure | Inspect `message` + `details` (native stack) / logs |
+
+```dart
+try {
+  final sig = await keys.sign(alias: 'holderKey', payload: bytes);
+  // …use sig…
+} on UserNotAuthenticatedError {
+  // user cancelled the prompt — let them retry
+} on KeyInvalidatedError {
+  await _reEnroll();                       // key is gone (see next section)
+} on AttestedSecureKeysException catch (e) {
+  // catch-all: code, message (with native type) and details are all populated
+  log('key op failed: ${e.code} — ${e.message}\n${e.details}');
+}
+```
+
+### Biometric/credential changes invalidate gated keys
+
+A key created with `userAuth` is **bound to the device's current biometric set**
+(`setInvalidatedByBiometricEnrollment` on Android; `.biometryCurrentSet` on iOS).
+When the user **adds or removes a fingerprint/face**, the OS **permanently
+destroys the private key** — this is deliberate, desirable security (a newly
+enrolled biometric can't be used to operate a key the original user authorized).
+
+The key is **gone and unrecoverable**; you must **generate a new one and re-enroll
+its public key + attestation with your backend**. On Android the dead entry is
+auto-removed and `sign` throws `KeyInvalidatedError`. On iOS the platform can't
+always tell invalidation apart from an ordinary auth failure, so it may surface as
+`UserNotAuthenticatedError` whose `message` mentions a possible biometric change —
+treat a repeated auth failure on a key you *know* exists as a likely invalidation.
+
+**The recovery flow — seamless for the user, safe against takeover:**
+
+1. **Catch** `KeyInvalidatedError` (on iOS, also treat a repeated auth failure on
+   a key you know exists as a likely invalidation).
+2. **Re-prove identity first.** A biometric change can be an attacker holding the
+   unlocked phone, so never rotate the binding key silently — gate the rest behind
+   the user's existing session + a step-up (PIN/biometric), or, for a high-
+   assurance/EUDI wallet, a full re-enrollment / liveness check.
+3. Get a **fresh nonce** from your server.
+4. **`generateKey`** a new hardware key under the same alias (it replaces the dead
+   entry).
+5. **`attest`** it and send the **new public key + attestation (+ `keyId`)** to
+   your backend, which **verifies the attestation and rotates** the public key it
+   trusts for the user. (The public-key-derived correlation id changes — the
+   server must remap it.)
+6. **Retry** the signature once with the fresh key.
+
+```dart
+Future<Es256Signature> signWithReenroll(Uint8List payload) async {
+  try {
+    return await keys.sign(alias: 'holderKey', payload: payload);
+  } on KeyInvalidatedError {
+    if (!await stepUp()) throw StateError('re-enroll cancelled');     // (2)
+    final nonce = await backend.freshAttestationNonce();              // (3)
+    final key = await keys.generateKey(                              // (4)
+      alias: 'holderKey',
+      minSecurityLevel: KeySecurityLevel.trustedEnvironment,
+      userAuth: const UserAuthPolicy.perUseBiometric(),
+      attestationChallenge: nonce,
+    );
+    final att = await keys.attest(alias: 'holderKey', serverNonce: nonce); // (5)
+    await backend.reEnrollKey(
+        publicJwk: key.publicJwk, keyId: key.keyId, attestation: att);     // (5)
+    return keys.sign(alias: 'holderKey', payload: payload);               // (6)
+  }
+}
+```
+
+> A complete, copy-pasteable version — with a `WalletKeyBackend` interface and a
+> `StepUp` gate — ships in the example at
+> [`example/lib/reenroll_on_invalidation.dart`](example/lib/reenroll_on_invalidation.dart),
+> wired to a runnable **Re-enroll** button in the demo app.
+>
+> **Don't make it a silent swap.** Step (2) is load-bearing: gate the rotation
+> behind re-proofing proportionate to your assurance level — for an EUDI wallet
+> that typically means re-running enrollment, not just generating a new key.
 
 ## The assurance model (read this first)
 

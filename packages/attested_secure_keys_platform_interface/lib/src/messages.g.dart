@@ -995,6 +995,19 @@ class _PigeonCodec extends StandardMessageCodec {
   }
 }
 
+/// Every method carries
+/// `@TaskQueue(type: TaskQueueType.serialBackgroundThread)`: Keystore /
+/// Secure-Enclave work (key generation — seconds on StrongBox —, signing,
+/// attestation chain serialization) is heavy and MUST NOT run on the Flutter
+/// platform (main/UI) thread, where it would jank or trip an ANR. Pigeon
+/// dispatches all annotated methods on a SINGLE shared serial background thread,
+/// which both moves them off the UI thread AND serializes secure-hardware access
+/// (Keymaster/StrongBox is single-flight anyway), giving deterministic ordering.
+///
+/// The biometric prompt is the one thing that must touch the UI thread; the
+/// native `sign` implementation re-dispatches `BiometricPrompt.authenticate`
+/// (Android) to the main thread itself, so gating still works transparently —
+/// callers do nothing.
 class AttestedSecureKeysApi {
   /// Constructor for [AttestedSecureKeysApi]. The [binaryMessenger] named argument is
   /// available for dependency injection. If it is left null, the default

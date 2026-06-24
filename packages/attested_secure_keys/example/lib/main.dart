@@ -4,6 +4,8 @@ import 'package:attested_secure_keys/attested_secure_keys.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'reenroll_on_invalidation.dart';
+
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
@@ -139,6 +141,29 @@ class _DemoPageState extends State<DemoPage> {
     _append('✓ copied attestation JSON (${json.length} chars) to clipboard');
   }
 
+  /// Runs the `KeyInvalidatedError` recovery template (see
+  /// reenroll_on_invalidation.dart) end-to-end against a fake backend:
+  /// step-up → regenerate → re-attest → "rotate" → sign. On a real device this
+  /// is exactly what you'd run inside `catch (KeyInvalidatedError)`.
+  Future<void> _reenrollDemo() => _run('re-enroll', () async {
+    final backend = _FakeWalletBackend(_append);
+    final sig = await reEnrollAndSign(
+      keys: _keys,
+      alias: _alias,
+      payload: Uint8List.fromList(utf8.encode('post-reenroll payload')),
+      backend: backend,
+      // Demo floor so it also runs on emulators; use trustedEnvironment in prod.
+      minSecurityLevel: KeySecurityLevel.software,
+      stepUp: () async {
+        _append('• step-up: re-proving identity (demo: auto-approved)');
+        return true;
+      },
+    );
+    _append(
+      '✓ re-enroll: signed with the fresh key (${sig.bytes.length}-byte R‖S)',
+    );
+  });
+
   Future<void> _delete() => _run('deleteKey', () async {
     await _keys.deleteKey(alias: _alias);
     setState(() => _key = null);
@@ -188,6 +213,10 @@ class _DemoPageState extends State<DemoPage> {
                   onPressed: (_busy || _att == null) ? null : _copyAttestation,
                   child: const Text('Copy JSON'),
                 ),
+                OutlinedButton(
+                  onPressed: _busy ? null : _reenrollDemo,
+                  child: const Text('Re-enroll'),
+                ),
               ],
             ),
           ),
@@ -213,6 +242,29 @@ class _DemoPageState extends State<DemoPage> {
         ],
       ),
     );
+  }
+}
+
+/// A no-op stand-in for your real backend, so the demo can run the rotation
+/// end-to-end. A real implementation verifies the attestation against the
+/// manufacturer roots and stores the rotated public key for the user.
+class _FakeWalletBackend implements WalletKeyBackend {
+  _FakeWalletBackend(this._log);
+  final void Function(String) _log;
+
+  @override
+  Future<Uint8List> freshAttestationNonce() async {
+    _log('• backend: issued a fresh attestation nonce');
+    return _DemoPageState._demoNonce;
+  }
+
+  @override
+  Future<void> reEnrollKey({
+    required Jwk publicJwk,
+    required String keyId,
+    required KeyAttestation attestation,
+  }) async {
+    _log('• backend: verified attestation + rotated public key (keyId=$keyId)');
   }
 }
 

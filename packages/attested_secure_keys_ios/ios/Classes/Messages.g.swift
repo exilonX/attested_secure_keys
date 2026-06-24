@@ -988,6 +988,20 @@ class MessagesPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 }
 
 
+/// Every method carries
+/// `@TaskQueue(type: TaskQueueType.serialBackgroundThread)`: Keystore /
+/// Secure-Enclave work (key generation — seconds on StrongBox —, signing,
+/// attestation chain serialization) is heavy and MUST NOT run on the Flutter
+/// platform (main/UI) thread, where it would jank or trip an ANR. Pigeon
+/// dispatches all annotated methods on a SINGLE shared serial background thread,
+/// which both moves them off the UI thread AND serializes secure-hardware access
+/// (Keymaster/StrongBox is single-flight anyway), giving deterministic ordering.
+///
+/// The biometric prompt is the one thing that must touch the UI thread; the
+/// native `sign` implementation re-dispatches `BiometricPrompt.authenticate`
+/// (Android) to the main thread itself, so gating still works transparently —
+/// callers do nothing.
+///
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol AttestedSecureKeysApi {
   /// Generate a NEW non-exportable EC P-256 key in the strongest available
@@ -1013,10 +1027,17 @@ class AttestedSecureKeysApiSetup {
   /// Sets up an instance of `AttestedSecureKeysApi` to handle messages through the `binaryMessenger`.
   static func setUp(binaryMessenger: FlutterBinaryMessenger, api: AttestedSecureKeysApi?, messageChannelSuffix: String = "") {
     let channelSuffix = messageChannelSuffix.count > 0 ? ".\(messageChannelSuffix)" : ""
+    #if os(iOS)
+      let taskQueue = binaryMessenger.makeBackgroundTaskQueue?()
+    #else
+      let taskQueue: FlutterTaskQueue? = nil
+    #endif
     /// Generate a NEW non-exportable EC P-256 key in the strongest available
     /// secure hardware. Throws (FlutterError code `unsupported_security_level`)
     /// if [PgGenerateKeyRequest.minSecurityLevel] cannot be met.
-    let generateKeyChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.generateKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let generateKeyChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.generateKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.generateKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       generateKeyChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -1035,7 +1056,9 @@ class AttestedSecureKeysApiSetup {
     }
     /// ES256-sign the payload, returning raw 64-byte `R||S`.
     /// Triggers the OS biometric/PIN prompt when the key is auth-gated.
-    let signChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.sign\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let signChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.sign\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.sign\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       signChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -1053,7 +1076,9 @@ class AttestedSecureKeysApiSetup {
       signChannel.setMessageHandler(nil)
     }
     /// Produce a fresh attestation bound to the supplied server nonce.
-    let attestChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.attest\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let attestChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.attest\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.attest\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       attestChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -1070,7 +1095,9 @@ class AttestedSecureKeysApiSetup {
     } else {
       attestChannel.setMessageHandler(nil)
     }
-    let getKeyInfoChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.getKeyInfo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let getKeyInfoChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.getKeyInfo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.getKeyInfo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       getKeyInfoChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -1087,7 +1114,9 @@ class AttestedSecureKeysApiSetup {
     } else {
       getKeyInfoChannel.setMessageHandler(nil)
     }
-    let containsKeyChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.containsKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let containsKeyChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.containsKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.containsKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       containsKeyChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -1102,7 +1131,9 @@ class AttestedSecureKeysApiSetup {
     } else {
       containsKeyChannel.setMessageHandler(nil)
     }
-    let deleteKeyChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.deleteKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let deleteKeyChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.deleteKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.deleteKey\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       deleteKeyChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
@@ -1119,7 +1150,9 @@ class AttestedSecureKeysApiSetup {
     } else {
       deleteKeyChannel.setMessageHandler(nil)
     }
-    let listAliasesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.listAliases\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let listAliasesChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.listAliases\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.listAliases\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       listAliasesChannel.setMessageHandler { _, reply in
         api.listAliases { result in
@@ -1135,7 +1168,9 @@ class AttestedSecureKeysApiSetup {
       listAliasesChannel.setMessageHandler(nil)
     }
     /// Probe what this device/OS can actually do, before generating anything.
-    let capabilitiesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.capabilities\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let capabilitiesChannel = taskQueue == nil
+      ? FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.capabilities\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+      : FlutterBasicMessageChannel(name: "dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.capabilities\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec, taskQueue: taskQueue)
     if let api = api {
       capabilitiesChannel.setMessageHandler { _, reply in
         api.capabilities { result in

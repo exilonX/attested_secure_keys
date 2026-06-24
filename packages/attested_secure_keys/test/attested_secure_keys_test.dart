@@ -13,6 +13,10 @@ class _FakePlatform extends AttestedSecureKeysPlatform
   KeySecurityLevel? lastMinLevel;
   UserAuthPolicy? lastUserAuth;
 
+  /// When set, `sign` throws this instead of returning — used to prove the
+  /// facade propagates typed errors without swallowing them.
+  Object? throwOnSign;
+
   @override
   Future<DeviceKeyCapabilities> capabilities() async =>
       const DeviceKeyCapabilities(
@@ -56,7 +60,10 @@ class _FakePlatform extends AttestedSecureKeysPlatform
     required Uint8List payload,
     String? promptTitle,
     String? promptSubtitle,
-  }) async => Es256Signature.fromBytes(Uint8List(64));
+  }) async {
+    if (throwOnSign != null) throw throwOnSign!;
+    return Es256Signature.fromBytes(Uint8List(64));
+  }
 
   @override
   Future<KeyAttestation> attest({
@@ -143,6 +150,25 @@ void main() {
     );
     expect(sig.bytes.length, 64);
     expect(sig.jose.contains('='), isFalse);
+  });
+
+  test('sign() propagates KeyInvalidatedError without swallowing it', () async {
+    fake.throwOnSign = const KeyInvalidatedError(
+      'k',
+      'Key was permanently invalidated by a biometric change; re-enroll.',
+      code: ErrorCodes.keyInvalidated,
+    );
+    await expectLater(
+      const AttestedSecureKeys().sign(
+        alias: 'k',
+        payload: Uint8List.fromList([1, 2, 3]),
+      ),
+      throwsA(
+        isA<KeyInvalidatedError>()
+            .having((e) => e.alias, 'alias', 'k')
+            .having((e) => e.code, 'code', ErrorCodes.keyInvalidated),
+      ),
+    );
   });
 
   test('attest() echoes the server nonce', () async {
