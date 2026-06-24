@@ -4,12 +4,12 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'attested_secure_keys_ios'
-  s.version          = '0.1.0'
+  s.version          = '0.1.0-dev.1'
   s.summary          = 'Hardware-backed, attestable EC P-256 keys for Flutter: Android Keystore/StrongBox and iOS Secure Enclave, non-exportable, ES256/JOSE output, with verifiable key attestation.'
   s.description      = <<-DESC
 Hardware-backed, attestable EC P-256 keys for Flutter: Android Keystore/StrongBox and iOS Secure Enclave, non-exportable, ES256/JOSE output, with verifiable key attestation.
                        DESC
-  s.homepage         = 'https://github.com/roeid/attested_secure_keys'
+  s.homepage         = 'https://github.com/exilonX/attested_secure_keys'
   s.license          = { :type => 'Apache-2.0', :file => '../LICENSE' }
   s.author           = { 'ROeID' => 'opensource@roeid.ro' }
   s.source           = { :path => '.' }
