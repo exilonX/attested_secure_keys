@@ -101,3 +101,9 @@ the Firebase console → Test Lab.
 3. `iamcredentials`/`sts` APIs not enabled → impersonation 403 at the test step.
 4. `storage.objects.create denied` on the managed default bucket → use your own
    `--results-bucket`.
+5. Billing not enabled → `billing account … is disabled` on bucket create / runs.
+   Link an OPEN billing account (Blaze); stays ~$0 inside the free quota.
+6. `--use-orchestrator` → "Test timed out": the Android Test Orchestrator is
+   incompatible with Flutter's single-pass `integration_test`. Removed it.
+7. Invalid device combo (`panther`/34 → "Incompatible device/OS combination") →
+   use combos from `gcloud firebase test android models list`.
