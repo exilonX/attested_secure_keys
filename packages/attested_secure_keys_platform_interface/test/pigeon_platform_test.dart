@@ -31,7 +31,10 @@ void main() {
   }
 
   test('key_invalidated maps to KeyInvalidatedError', () async {
-    expect(await signWith(ErrorCodes.keyInvalidated), isA<KeyInvalidatedError>());
+    expect(
+      await signWith(ErrorCodes.keyInvalidated),
+      isA<KeyInvalidatedError>(),
+    );
   });
 
   test('user_not_authenticated maps to UserNotAuthenticatedError', () async {
@@ -46,8 +49,9 @@ void main() {
   });
 
   test('the translated error preserves the originating code', () async {
-    final e = await signWith(ErrorCodes.keyInvalidated)
-        as AttestedSecureKeysException;
+    final e =
+        await signWith(ErrorCodes.keyInvalidated)
+            as AttestedSecureKeysException;
     expect(e.code, ErrorCodes.keyInvalidated);
   });
 }
