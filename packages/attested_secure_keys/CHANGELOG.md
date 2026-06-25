@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.1.0
+## 0.1.0-dev.1
+
+First prerelease — published as `-dev` to test the release pipeline and soak the
+implementation before a stable 0.1.0. Both platforms are device-verified:
+Android (StrongBox/TEE attestation) via Firebase Test Lab, and iOS (Secure
+Enclave + App Attest) on a physical iPhone.
 
 Initial release (milestone **M0** — spike + public API).
 
@@ -32,4 +37,5 @@ Initial release (milestone **M0** — spike + public API).
   attestation challenge are scheduled for **M1**.
 - `KeyAttestation.toOid4vciKeyAttestationJwt()` and the Node verifier are
   scheduled for **M2**.
-- iOS native code has not yet been validated in a device build loop.
+- iOS native code is now device-verified on a physical iPhone (Secure Enclave +
+  App Attest); broader OS-version / CI device coverage is ongoing.

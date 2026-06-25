@@ -1,6 +1,6 @@
 name: attested_secure_keys_android
 description: "Android implementation of attested_secure_keys: hardware-backed, attestable EC P-256 keys via Android Keystore / StrongBox."
-version: 0.1.0
+version: 0.1.0-dev.1
 homepage: https://github.com/exilonX/attested_secure_keys
 repository: https://github.com/exilonX/attested_secure_keys
 issue_tracker: https://github.com/exilonX/attested_secure_keys/issues
@@ -20,7 +20,7 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  attested_secure_keys_platform_interface: ^0.1.0
+  attested_secure_keys_platform_interface: ^0.1.0-dev.1
 
 dev_dependencies:
   flutter_test:

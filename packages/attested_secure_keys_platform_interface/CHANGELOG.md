@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.1.0
+## 0.1.0-dev.1
 
-Initial release.
+First prerelease.
 
 - `AttestedSecureKeysPlatform` contract (extends `PlatformInterface`).
 - Normalized model: enums, `HwKey`, `Es256Signature`, `KeyAttestation`,

@@ -23,6 +23,10 @@ timeline after triage.
   spoofable are by design — see the README "assurance model".
 - Private key material is non-exportable and never crosses the platform channel;
   reports demonstrating key extraction are high priority.
+- **Not a certified WSCD.** This library provides hardware-backed keys plus the
+  manufacturer's attestation artifacts; it is **not** a certified eIDAS WSCD/SCD
+  and makes no Level-of-Assurance claim. Certification (CC/EUCC) is the
+  integrator's responsibility.
 
 ## Supported versions
 

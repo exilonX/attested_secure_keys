@@ -482,6 +482,26 @@ It verifies the chain, pins the Google root by fingerprint, decodes the key
 properties (level / origin / verified-boot / gating), and checks
 `challenge == nonce`. It's a developer self-check, not a production verifier.
 
+## Limitations & non-claims
+
+Be clear-eyed about what this library is and is not:
+
+- **Not a certified WSCD/SCD.** It provides hardware-backed keys and the
+  manufacturer's attestation *artifacts*; it is **not** a certified eIDAS Wallet
+  Secure Cryptographic Device / Secure Cryptographic Application, and makes **no
+  Level-of-Assurance claim**. A certified WSCD (Common Criteria / EUCC, LoA
+  "High") is the integrator's responsibility and out of scope here.
+- **Trust is server-side.** A key is only trustworthy once *your backend* verifies
+  its attestation against the genuine Google/Apple roots (chain, security level,
+  verified boot, freshness, revocation). `effectiveLevel` is a UX hint, never a
+  trust decision.
+- **EC P-256 / ES256 only.** No P-384, RSA, or EdDSA. P-256 is the cross-platform
+  floor (the iOS Secure Enclave is P-256-only) and the EUDI mdoc / SD-JWT VC
+  baseline; a profile that mandates another curve isn't supported yet.
+- **iOS validation varies by release.** The Secure Enclave + App Attest paths are
+  implemented but may not be hardware-validated in a given release — check the
+  *Platform support* note and the CHANGELOG.
+
 ## Status & roadmap
 
 Early but moving fast.
@@ -501,11 +521,11 @@ Early but moving fast.
 - **M3** — Hardening for certification; publish to pub.dev under a verified
   publisher.
 
-> ⚠️ **Android device-verified; iOS not yet.** The Android keygen / sign /
-> attestation + biometric-gating paths have been validated on real hardware (TEE
-> tier), including decoding the attestation to the genuine Google root. iOS
-> compiles but still needs an on-device pass (App Attest needs the entitlement
-> and a real device).
+> ✅ **Android and iOS both device-verified.** Android (keygen / sign / attestation
+> + biometric gating) is validated on real hardware via Firebase Test Lab and by
+> decoding the attestation to the genuine Google root. iOS (Secure Enclave +
+> App Attest + biometric gating) is validated on a physical iPhone — a single
+> manual device pass so far; broader OS-version coverage in CI is still ongoing.
 
 ## Contributing
 
