@@ -22,7 +22,9 @@ import 'package:pigeon/pigeon.dart';
     dartOptions: DartOptions(),
     kotlinOut:
         '../attested_secure_keys_android/android/src/main/kotlin/io/github/exilonx/attested_secure_keys/Messages.g.kt',
-    kotlinOptions: KotlinOptions(package: 'io.github.exilonx.attested_secure_keys'),
+    kotlinOptions: KotlinOptions(
+      package: 'io.github.exilonx.attested_secure_keys',
+    ),
     swiftOut: '../attested_secure_keys_ios/ios/Classes/Messages.g.swift',
     swiftOptions: SwiftOptions(),
     dartPackageName: 'attested_secure_keys',
