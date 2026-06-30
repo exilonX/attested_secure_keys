@@ -2,7 +2,7 @@
 // See also: https://pub.dev/packages/pigeon
 @file:Suppress("UNCHECKED_CAST", "ArrayInDataClass")
 
-package ro.roeid.attested_secure_keys
+package io.github.exilonx.attested_secure_keys
 
 import android.util.Log
 import io.flutter.plugin.common.BasicMessageChannel

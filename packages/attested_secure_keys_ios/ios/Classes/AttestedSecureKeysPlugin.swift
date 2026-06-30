@@ -20,13 +20,13 @@ import UIKit
 ///    registered once (id cached in the keychain) and reused for per-session
 ///    assertions thereafter, to respect Apple's attestation rate limits.
 public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKeysApi {
-  private static let service = "ro.roeid.attested_secure_keys"
+  private static let service = "io.github.exilonx.attested_secure_keys"
   // Per-alias metadata (attestation type, gating) so getKeyInfo can report
   // state that the key blob itself does not carry — survives app restarts.
-  private static let metaService = "ro.roeid.attested_secure_keys.meta"
+  private static let metaService = "io.github.exilonx.attested_secure_keys.meta"
   // App-wide App Attest key id (one registration per install, reused for
   // per-session assertions). Account is fixed; the key id is the value.
-  private static let appAttestService = "ro.roeid.attested_secure_keys.appattest"
+  private static let appAttestService = "io.github.exilonx.attested_secure_keys.appattest"
   private static let appAttestAccount = "keyId"
   private static let seTag: UInt8 = 0x01 // Secure Enclave key blob
   private static let swTag: UInt8 = 0x00 // software fallback key blob

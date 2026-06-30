@@ -1,4 +1,4 @@
-package ro.roeid.attested_secure_keys_example
+package io.github.exilonx.attested_secure_keys_example
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

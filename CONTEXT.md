@@ -1,7 +1,6 @@
 # CONTEXT — attested_secure_keys
 
-A revival doc: enough to pick this project back up cold. For the full product
-spec see [HW_KEYS_FLUTTER_LIB_SPEC.md](HW_KEYS_FLUTTER_LIB_SPEC.md); for design
+A revival doc: enough to pick this project back up cold. For design
 see [doc/DESIGN.md](doc/DESIGN.md); for the API see
 [packages/attested_secure_keys/README.md](packages/attested_secure_keys/README.md).
 
@@ -10,8 +9,8 @@ see [doc/DESIGN.md](doc/DESIGN.md); for the API see
 A **Flutter plugin** for **hardware-backed, attestable EC P-256 keys**: generate
 non-exportable signing keys inside Android Keystore (StrongBox/TEE) or the iOS
 Secure Enclave, sign with ES256, and emit a server-verifiable **key attestation**.
-It's the concrete "wallet key" channel for the ROeID EUDI POC, but deliberately
-generic — any app that needs un-exfiltratable keys can use it.
+It's designed as a generic "wallet key" channel for EUDI-style wallets — but any
+app that needs un-exfiltratable keys can use it.
 
 ## Scope (READ THIS)
 

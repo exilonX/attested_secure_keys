@@ -1,4 +1,4 @@
-package ro.roeid.attested_secure_keys
+package io.github.exilonx.attested_secure_keys
 
 import android.app.Activity
 import android.content.Context

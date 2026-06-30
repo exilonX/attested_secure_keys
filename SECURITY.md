@@ -7,7 +7,7 @@ hardware-backed signing keys). We take vulnerability reports seriously.
 
 **Do not open a public issue for security reports.** Instead, use GitHub's
 [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)
-on this repository, or email **security@roeid.ro**.
+on this repository.
 
 Please include: affected version(s), platform (Android/iOS + OS version),
 a description, and reproduction steps or a proof of concept if available.
