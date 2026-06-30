@@ -75,5 +75,5 @@ dependencies {
     // way to gate a Keystore signing operation behind the system biometric UI.
     implementation("androidx.biometric:biometric:1.1.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
-    testImplementation("org.mockito:mockito-core:5.0.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
 }
