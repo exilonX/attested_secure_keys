@@ -22,7 +22,7 @@ jobs:
     permissions:
       id-token: write # REQUIRED for pub.dev OIDC — do not remove.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
