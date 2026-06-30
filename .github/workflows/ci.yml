@@ -35,7 +35,7 @@ jobs:
         working-directory: packages/attested_secure_keys_platform_interface
         run: flutter test --coverage
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: packages/attested_secure_keys/coverage/lcov.info,packages/attested_secure_keys_platform_interface/coverage/lcov.info
           fail_ci_if_error: false # never block CI on a coverage-upload hiccup
