@@ -20,11 +20,14 @@ name: Device tests (Firebase Test Lab)
 #      GCP_RESULTS_BUCKET (the bucket from 5).
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "0 3 * * *" # nightly
+  workflow_dispatch: # run on demand from the Actions tab
   pull_request:
     types: [labeled] # also run when a PR is labeled "device-tests"
+  # No nightly `schedule:` trigger. The FTL plumbing is green, but the on-device
+  # integration_test currently times out (tracked in issue #19). A nightly cron
+  # would paint the Actions tab red and email a failure every morning for a known,
+  # already-tracked issue — pure noise. This workflow stays opt-in (manual dispatch
+  # or the "device-tests" PR label) until #19 is fixed; then re-add the cron.
 
 jobs:
   android-device-tests:
