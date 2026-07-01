@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'attested_secure_keys_ios'
-  s.version          = '0.1.0-dev.1'
+  s.version          = '0.1.0-dev.2'
   s.summary          = 'Hardware-backed, attestable EC P-256 keys for Flutter: Android Keystore/StrongBox and iOS Secure Enclave, non-exportable, ES256/JOSE output, with verifiable key attestation.'
   s.description      = <<-DESC
 Hardware-backed, attestable EC P-256 keys for Flutter: Android Keystore/StrongBox and iOS Secure Enclave, non-exportable, ES256/JOSE output, with verifiable key attestation.

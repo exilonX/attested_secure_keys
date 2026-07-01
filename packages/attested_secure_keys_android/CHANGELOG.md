@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0-dev.2
+
+- Renamed the Android package/namespace from `ro.roeid.attested_secure_keys` to
+  `io.github.exilonx.attested_secure_keys`. No API or behavior change.
+
 ## 0.1.0-dev.1
 
 First prerelease. Android Keystore implementation of `AttestedSecureKeysApi`:
