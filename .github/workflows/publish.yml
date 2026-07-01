@@ -1,22 +1,20 @@
 name: Publish to pub.dev
 
-# Tokenless automated publishing via pub.dev + GitHub OIDC.
+# Automated publishing via pub.dev + GitHub OIDC.
 #
-# One-time setup (per package) on pub.dev:
-#   Admin → Automated publishing → Enable publishing from GitHub Actions,
-#   set the repository and tag pattern `v{{version}}`.
+# THE KEY STEP is `dart-lang/setup-dart@v1`: it exchanges the `id-token` below
+# for a temporary pub.dev credential and writes it to disk. `subosito/flutter-
+# action` alone does NOT do this — without it, `pub` has no credential and falls
+# back to interactive browser OAuth (which hangs in CI). We run BOTH: setup-dart
+# (for the OIDC credential) and flutter-action (for the Flutter SDK needed to
+# resolve `flutter: sdk` deps; its `dart` shadows setup-dart's, which is fine —
+# the credential is already on disk).
 #
-# Then publish by pushing a tag:  git tag v0.1.0 && git push origin v0.1.0
+# This mirrors the official reusable workflow
+# `dart-lang/setup-dart/.github/workflows/publish.yml`, expanded to publish the
+# four federated packages in dependency order.
 #
-# IMPORTANT: publish with `dart pub publish`, NOT `flutter pub publish`. The
-# Flutter wrapper does not perform the OIDC token exchange, so it falls back to
-# interactive browser auth and hangs in CI. `dart pub publish` (the SDK is on
-# PATH via the Flutter action) uses the GitHub OIDC token issued by the
-# `id-token: write` permission below.
-#
-# Packages are published in federated dependency order: the platform interface
-# first, then the native implementations, then the app-facing package. Short
-# pauses give pub.dev time to index a package before a dependent one is checked.
+# Publish by pushing a tag:  git tag v0.1.0 && git push origin v0.1.0
 
 on:
   push:
@@ -30,22 +28,22 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+
+      # Provisions the OIDC-based pub.dev credential from the id-token. THE fix.
+      - uses: dart-lang/setup-dart@v1
+      # Flutter SDK — needed to resolve `flutter: sdk` deps (its dart shadows
+      # setup-dart's binary; the pub credential setup-dart wrote is still used).
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
       - run: flutter pub get
 
-      # Prove OIDC is actually available before publishing. If this prints
-      # "NOT available", the id-token permission isn't reaching the runner and
-      # publishing would fall back to interactive auth (the real fix is then a
-      # permissions/policy issue, not the publish command).
       - name: Check OIDC token availability
         run: |
           if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
-            echo "✅ OIDC id-token IS available (ACTIONS_ID_TOKEN_REQUEST_URL is set)"
+            echo "✅ OIDC id-token IS available"
           else
-            echo "❌ OIDC id-token NOT available — check 'permissions: id-token: write' and repo/org OIDC policy"
-            exit 1
+            echo "❌ OIDC id-token NOT available"; exit 1
           fi
 
       - name: Publish attested_secure_keys_platform_interface
