@@ -7,7 +7,7 @@
 //
 // Generated files (do not edit by hand):
 //   - lib/src/messages.g.dart
-//   - android/src/main/kotlin/ro/roeid/attested_secure_keys/Messages.g.kt
+//   - android/src/main/kotlin/io/github/exilonx/attested_secure_keys/Messages.g.kt
 //   - ios/Classes/Messages.g.swift
 //
 // Wire types are prefixed `Pg` so they never collide with the hand-written,
@@ -21,8 +21,10 @@ import 'package:pigeon/pigeon.dart';
     dartOut: 'lib/src/messages.g.dart',
     dartOptions: DartOptions(),
     kotlinOut:
-        '../attested_secure_keys_android/android/src/main/kotlin/ro/roeid/attested_secure_keys/Messages.g.kt',
-    kotlinOptions: KotlinOptions(package: 'ro.roeid.attested_secure_keys'),
+        '../attested_secure_keys_android/android/src/main/kotlin/io/github/exilonx/attested_secure_keys/Messages.g.kt',
+    kotlinOptions: KotlinOptions(
+      package: 'io.github.exilonx.attested_secure_keys',
+    ),
     swiftOut: '../attested_secure_keys_ios/ios/Classes/Messages.g.swift',
     swiftOptions: SwiftOptions(),
     dartPackageName: 'attested_secure_keys',

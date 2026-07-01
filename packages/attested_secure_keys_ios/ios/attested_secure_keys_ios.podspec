@@ -11,7 +11,7 @@ Hardware-backed, attestable EC P-256 keys for Flutter: Android Keystore/StrongBo
                        DESC
   s.homepage         = 'https://github.com/exilonX/attested_secure_keys'
   s.license          = { :type => 'Apache-2.0', :file => '../LICENSE' }
-  s.author           = { 'ROeID' => 'opensource@roeid.ro' }
+  s.author           = 'Ionel Merca'
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'

@@ -1,4 +1,4 @@
-group = "ro.roeid.attested_secure_keys"
+group = "io.github.exilonx.attested_secure_keys"
 version = "1.0-SNAPSHOT"
 
 buildscript {
@@ -27,7 +27,7 @@ plugins {
 }
 
 android {
-    namespace = "ro.roeid.attested_secure_keys"
+    namespace = "io.github.exilonx.attested_secure_keys"
 
     compileSdk = 36
 
