@@ -24,7 +24,7 @@ jobs:
       security-events: write # upload SARIF to code scanning
       id-token: write # publish results to the OpenSSF API (badge)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
