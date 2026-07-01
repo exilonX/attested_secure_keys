@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0
+
+First stable release. Secure Enclave + App Attest device-verified on a physical
+iPhone. No functional changes since `0.1.0-dev.2`.
+
 ## 0.1.0-dev.2
 
 - Renamed the iOS keychain service identifiers from `ro.roeid.*` to

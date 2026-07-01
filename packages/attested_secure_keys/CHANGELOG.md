@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0
+
+First stable release. The public `AttestedSecureKeys` API is considered stable
+for the `0.1.x` line (breaking changes, if any, will land in `0.2.0`). Both
+platforms are device-verified: Android (StrongBox/TEE Keystore attestation) and
+iOS (Secure Enclave + App Attest). No functional changes since `0.1.0-dev.2` —
+promotes the soaked prerelease and clarifies the docs' verification-responsibility
+boundary (the plugin emits standard-format attestations; verification is the
+relying party's job).
+
 ## 0.1.0-dev.2
 
 Housekeeping prerelease; **no public API changes**.

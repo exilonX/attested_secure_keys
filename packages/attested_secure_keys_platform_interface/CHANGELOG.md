@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0
+
+First stable release; the platform-interface contract and normalized model are
+stable for the `0.1.x` line. No functional changes since `0.1.0-dev.2`.
+
 ## 0.1.0-dev.2
 
 - Pigeon Kotlin output package renamed to `io.github.exilonx.attested_secure_keys`.

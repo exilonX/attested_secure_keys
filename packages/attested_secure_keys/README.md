@@ -143,11 +143,11 @@ convenience). On **iOS** the model differs: App Attest binds the nonce at
 | **Enrollment attestation** | once, at sign-up | `generateKey(attestationChallenge: nonce)` | the key was born in hardware *for this enrollment* |
 | **Proof-of-possession** | every request after | `sign(payload: freshNonce)` | the holder still controls the key *right now* |
 
-**The trust boundary.** The client never decides trust — it ships verbatim
-artifacts and your **server** establishes trust against the real manufacturer
-roots. Treat `key.effectiveLevel` as a UX hint only. You can sanity-check a bundle
-locally (no backend) with `attested_secure_keys_verifier/verify-local.mjs` — see
-*Server-side verification*.
+**The trust boundary.** The client never decides trust — it ships verbatim,
+**standard-format** artifacts and your **server** establishes trust against the real
+manufacturer roots. Treat `key.effectiveLevel` as a UX hint only. See
+*Verifying attestations* for how — and for what this library is deliberately **not**
+responsible for.
 
 ## API reference
 
@@ -460,27 +460,43 @@ re-verifies them against the genuine roots.
   validating `attestation` against manufacturer roots. Echo and check the
   `serverNonce` to stop replay.
 
-## Server-side verification
+## Verifying attestations (the relying party's job)
 
-Trust is established on your server. The companion verification recipe uses
-popular, audited Node libraries — `@peculiar/x509` + `pkijs`/`asn1js` (or
-`@simplewebauthn/server` / `fido2-lib`) for the Android `android-key` chain, and
-`appattest-checker-node` for iOS App Attest, with `jose` and `cbor` for the
-shared JOSE/COSE/CBOR work. (Ships as `attested_secure_keys_verifier` — see the
-roadmap.)
+**This library's responsibility ends at *emitting* attestations** — it does not
+verify them, and it doesn't need to. It produces them in the two industry-standard
+formats, verbatim:
 
-For a quick **local** sanity check with no backend, run the bundled
-`attested_secure_keys_verifier/verify-local.mjs` (plain Node + system `openssl`)
-against an exported `{ publicJwk, attestation }` bundle:
+- **Android** — the Keystore **X.509 attestation certificate chain** (extension OID
+  `1.3.6.1.4.1.11129.2.1.17`); the WebAuthn **`android-key`** attestation format.
+- **iOS** — the **App Attest** CBOR attestation object; the WebAuthn
+  **`apple-appattest`** format.
 
-```bash
-cd packages/attested_secure_keys_verifier
-npm run verify:local -- /path/to/bundle.json
-```
+Because these are standard formats, **any conformant verifier can validate them** —
+you are not tied to anything in this repo. Verification is a security decision that
+belongs on **your backend**, checked against the genuine manufacturer roots. Use an
+established, audited library:
 
-It verifies the chain, pins the Google root by fingerprint, decodes the key
-properties (level / origin / verified-boot / gating), and checks
-`challenge == nonce`. It's a developer self-check, not a production verifier.
+| Format | Verify with |
+|---|---|
+| Android `android-key` | Google's reference [`google/android-key-attestation`](https://github.com/google/android-key-attestation); any WebAuthn/FIDO2 server lib ([`@simplewebauthn/server`](https://github.com/MasterKale/SimpleWebAuthn), `fido2-lib`) — it's a WebAuthn attestation format; or roll your own with `@peculiar/x509` + `asn1js`. |
+| iOS `apple-appattest` | [`appattest-checker-node`](https://github.com/srinivas1729/appattest-checker-node) / [`node-app-attest`](https://github.com/uebelack/node-app-attest) (Node), [`veehaitch/devicecheck-appattest`](https://github.com/veehaitch/devicecheck-appattest) (Kotlin/JVM), [`bas-d/appattest`](https://github.com/bas-d/appattest) (Go), [`iansampson/AppAttest`](https://github.com/iansampson/AppAttest) (Swift); or a managed service like **Firebase App Check**. |
+
+Whatever you use, your server must confirm: the chain terminates at the genuine
+Google/Apple root; the **challenge/nonce matches the one you issued** (anti-replay);
+the **attested key matches the registered JWK**; and the security level / boot state
+meet your policy.
+
+> There is no trustworthy public **online** verifier for these formats — nor should
+> there be, since verification is a private decision over *your own* nonce and
+> enrollment. Do it server-side with one of the libraries above.
+
+### The in-repo reference verifier — not part of this library
+
+This repo also contains `attested_secure_keys_verifier`, a Node/TypeScript
+**reference** for local development self-checks. **It is not published to pub.dev,
+it is not a dependency of this plugin, and it is a work-in-progress skeleton — do
+not use it for production trust decisions.** It's a starting point to read, not a
+library to depend on. See its own README for status.
 
 ## Limitations & non-claims
 
