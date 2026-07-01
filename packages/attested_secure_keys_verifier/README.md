@@ -1,13 +1,20 @@
 # attested_secure_keys_verifier
 
-Server-side verifier for [`attested_secure_keys`](https://pub.dev/packages/attested_secure_keys).
+> ⚠️ **Reference implementation — NOT part of the published library.**
+> This package is **not** on pub.dev, is **not** a dependency of the
+> [`attested_secure_keys`](https://pub.dev/packages/attested_secure_keys) Flutter
+> plugin, and is a **work-in-progress skeleton**. It exists to *show* how
+> attestations can be verified server-side — **read it for guidance, do not depend
+> on it for production trust.** The plugin's responsibility is to *emit*
+> standard-format attestations (Android `android-key` X.509 chain, iOS
+> `apple-appattest` CBOR) that **any** conformant verifier can validate; for
+> production, use an established library — see the plugin README's
+> *Verifying attestations* section.
 
-The Flutter library generates hardware keys and produces an **attestation**; this
-Node/TypeScript package is the **other half of the trust model** — it runs on your
-backend and decides whether to trust a key, by validating the attestation against
-the genuine **Google / Apple manufacturer roots**. The client's reported
-`securityLevel` is only a hint; **this verifier is where trust is actually
-established.**
+A Node/TypeScript **reference** for the server-side half of the trust model: it
+validates an attestation against the genuine **Google / Apple manufacturer roots**
+to decide whether to trust a key. The client's reported `securityLevel` is only a
+hint; **verification (wherever you do it) is where trust is actually established.**
 
 ```
  device (attested_secure_keys)                 your backend (this package)

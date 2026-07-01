@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0
+
+First stable release. Android Keystore implementation device-verified
+(StrongBox/TEE attestation). No functional changes since `0.1.0-dev.2`.
+
 ## 0.1.0-dev.2
 
 - Renamed the Android package/namespace from `ro.roeid.attested_secure_keys` to
