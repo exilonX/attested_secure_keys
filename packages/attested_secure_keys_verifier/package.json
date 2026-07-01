@@ -36,7 +36,7 @@
     "key-attestation"
   ],
   "dependencies": {
-    "@peculiar/x509": "^1.14.3",
+    "@peculiar/x509": "^2.0.0",
     "appattest-checker-node": "^1.0.3",
     "asn1js": "^3.0.10",
     "cbor-x": "^1.6.4",
