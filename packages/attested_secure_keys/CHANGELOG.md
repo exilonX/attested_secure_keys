@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-dev.2
+
+Housekeeping prerelease; **no public API changes**.
+
+- Renamed the internal Android package and iOS keychain service identifiers
+  from `ro.roeid.*` to `io.github.exilonx.*`, removing all references to the
+  originating project from the published artifacts.
+- Reverted `meta` to `^1.17.0` to match the Flutter SDK's pin (a `^1.18.0`
+  floor excluded the SDK-pinned version and broke `flutter pub get`).
+
 ## 0.1.0-dev.1
 
 First prerelease — published as `-dev` to test the release pipeline and soak the
