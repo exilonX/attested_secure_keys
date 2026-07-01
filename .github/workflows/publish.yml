@@ -2,11 +2,17 @@ name: Publish to pub.dev
 
 # Tokenless automated publishing via pub.dev + GitHub OIDC.
 #
-# One-time setup (per package) on pub.dev once the repo exists:
+# One-time setup (per package) on pub.dev:
 #   Admin → Automated publishing → Enable publishing from GitHub Actions,
-#   set the repository and a tag pattern (e.g. `v{{version}}`).
+#   set the repository and tag pattern `v{{version}}`.
 #
 # Then publish by pushing a tag:  git tag v0.1.0 && git push origin v0.1.0
+#
+# IMPORTANT: publish with `dart pub publish`, NOT `flutter pub publish`. The
+# Flutter wrapper does not perform the OIDC token exchange, so it falls back to
+# interactive browser auth and hangs in CI. `dart pub publish` (the SDK is on
+# PATH via the Flutter action) uses the GitHub OIDC token issued by the
+# `id-token: write` permission below.
 #
 # Packages are published in federated dependency order: the platform interface
 # first, then the native implementations, then the app-facing package. Short
@@ -21,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write # REQUIRED for pub.dev OIDC — do not remove.
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
@@ -28,20 +35,33 @@ jobs:
           channel: stable
       - run: flutter pub get
 
+      # Prove OIDC is actually available before publishing. If this prints
+      # "NOT available", the id-token permission isn't reaching the runner and
+      # publishing would fall back to interactive auth (the real fix is then a
+      # permissions/policy issue, not the publish command).
+      - name: Check OIDC token availability
+        run: |
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "✅ OIDC id-token IS available (ACTIONS_ID_TOKEN_REQUEST_URL is set)"
+          else
+            echo "❌ OIDC id-token NOT available — check 'permissions: id-token: write' and repo/org OIDC policy"
+            exit 1
+          fi
+
       - name: Publish attested_secure_keys_platform_interface
         working-directory: packages/attested_secure_keys_platform_interface
-        run: flutter pub publish --force
+        run: dart pub publish --force
       - run: sleep 45
 
       - name: Publish attested_secure_keys_android
         working-directory: packages/attested_secure_keys_android
-        run: flutter pub publish --force
+        run: dart pub publish --force
 
       - name: Publish attested_secure_keys_ios
         working-directory: packages/attested_secure_keys_ios
-        run: flutter pub publish --force
+        run: dart pub publish --force
       - run: sleep 45
 
       - name: Publish attested_secure_keys
         working-directory: packages/attested_secure_keys
-        run: flutter pub publish --force
+        run: dart pub publish --force
