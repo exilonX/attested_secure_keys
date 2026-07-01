@@ -1,0 +1,48 @@
+name: CodeQL
+
+# Static application security testing (SAST). Covers the Kotlin plugin and the
+# Node/TS verifier — the two compiled/runtime surfaces where a security bug would
+# bite. Dart is not a CodeQL-supported language; the Dart side is covered by
+# `dart analyze` + the pana gate.
+#
+# build-mode: none — CodeQL extracts source without compiling, so this never
+# depends on the Flutter/Gradle/npm build succeeding (no flaky builds, no red).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # upload results to the Security tab
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: java-kotlin # Android plugin
+            build-mode: none
+          - language: javascript-typescript # verifier
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended # broader security query pack
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

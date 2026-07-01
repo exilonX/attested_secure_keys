@@ -18,3 +18,9 @@ updates:
     directory: "/packages/attested_secure_keys_android/android"
     schedule:
       interval: "weekly"
+
+  # Node/TS dependencies for the server-side attestation verifier.
+  - package-ecosystem: "npm"
+    directory: "/packages/attested_secure_keys_verifier"
+    schedule:
+      interval: "weekly"
