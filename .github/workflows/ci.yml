@@ -37,9 +37,9 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
+          token: ${{ secrets.CODECOV_TOKEN }} # repo upload token (tokenless is deprecated/flaky)
           files: packages/attested_secure_keys/coverage/lcov.info,packages/attested_secure_keys_platform_interface/coverage/lcov.info
           fail_ci_if_error: false # never block CI on a coverage-upload hiccup
-        # Public repos upload tokenless; for a private repo add a CODECOV_TOKEN secret.
 
   build-android:
     name: Build example (Android)
