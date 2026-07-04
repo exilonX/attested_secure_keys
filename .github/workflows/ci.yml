@@ -79,7 +79,7 @@ jobs:
         working-directory: packages/attested_secure_keys_verifier
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: npm
