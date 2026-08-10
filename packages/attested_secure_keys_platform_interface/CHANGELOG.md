@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- No code or API changes. Version bump only, to keep the four federated
+  packages in lockstep with `attested_secure_keys` 0.1.1.
+
 ## 0.1.0
 
 First stable release; the platform-interface contract and normalized model are

@@ -46,20 +46,20 @@ jobs:
             echo "❌ OIDC id-token NOT available"; exit 1
           fi
 
+      # Each step skips a package whose version is already on pub.dev, so a
+      # re-run after a partial release resumes where it stopped instead of
+      # aborting on the first, already-uploaded package. See the script header.
       - name: Publish attested_secure_keys_platform_interface
-        working-directory: packages/attested_secure_keys_platform_interface
-        run: dart pub publish --force
+        run: bash .github/scripts/publish-if-new.sh attested_secure_keys_platform_interface
+      # Let pub.dev make the new version resolvable before its dependents build.
       - run: sleep 45
 
       - name: Publish attested_secure_keys_android
-        working-directory: packages/attested_secure_keys_android
-        run: dart pub publish --force
+        run: bash .github/scripts/publish-if-new.sh attested_secure_keys_android
 
       - name: Publish attested_secure_keys_ios
-        working-directory: packages/attested_secure_keys_ios
-        run: dart pub publish --force
+        run: bash .github/scripts/publish-if-new.sh attested_secure_keys_ios
       - run: sleep 45
 
       - name: Publish attested_secure_keys
-        working-directory: packages/attested_secure_keys
-        run: dart pub publish --force
+        run: bash .github/scripts/publish-if-new.sh attested_secure_keys
