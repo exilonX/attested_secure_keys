@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Metadata only, no code or API changes. `homepage` now points at the design
+  write-up (https://exilonx.github.io/case-study/attested-secure-keys);
+  `repository` is unchanged.
+
 ## 0.1.0
 
 First stable release. The public `AttestedSecureKeys` API is considered stable

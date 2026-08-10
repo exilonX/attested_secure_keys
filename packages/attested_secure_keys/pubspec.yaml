@@ -1,7 +1,7 @@
 name: attested_secure_keys
 description: "Hardware-backed, attestable EC P-256 keys for Flutter — Android Keystore/StrongBox and iOS Secure Enclave, non-exportable, ES256/JOSE, with key attestation."
-version: 0.1.0
-homepage: https://github.com/exilonX/attested_secure_keys
+version: 0.1.1
+homepage: https://exilonx.github.io/case-study/attested-secure-keys
 repository: https://github.com/exilonX/attested_secure_keys
 issue_tracker: https://github.com/exilonX/attested_secure_keys/issues
 topics:
