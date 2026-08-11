@@ -16,8 +16,10 @@ import type { TrustStore } from './types.js';
  * root with the same key pair and a new validity window, so a device
  * provisioned earlier presents a certificate whose bytes differ from the
  * currently published one while the public key is identical. A pin on the
- * certificate fingerprint rejects that genuine hardware; a pin on the
- * SubjectPublicKeyInfo accepts it. Chain verification (#76) must compare keys.
+ * certificate fingerprint rejects that genuine hardware; a pin on the key
+ * accepts it. `chain.ts` therefore anchors by verifying the top certificate's
+ * signature under a pinned root's public key, and never compares certificate
+ * bytes.
  */
 
 /**

@@ -40,11 +40,14 @@ matches the JWK**, and checks revocation against the status list.
 
 ## Status
 
-⚠️ **Skeleton (M2 in progress).** The structure, types, decoding, and the
-anti-replay challenge match are in place; the deep manufacturer-root and
-extension verification are marked `TODO(M2)` and the verifier returns
-`verified: false` with explicit `reasons` until they are implemented. **Do not
-use for production trust decisions yet.**
+⚠️ **M2 in progress.** On the Android path, decoding, **chain anchoring to the
+pinned Google roots** (validity windows, issuer signatures, CA constraints,
+public-key — not fingerprint — matching of the anchor) and the anti-replay
+challenge match are in place. The key's own attested properties
+(`securityLevel` / `origin` / boot state / JWK binding) and revocation are still
+marked `TODO(M2)`, so `verifyAttestation` returns `verified: false` with explicit
+`reasons` naming what was checked and what was not. **Do not use for production
+trust decisions yet.**
 
 ## Install & build
 

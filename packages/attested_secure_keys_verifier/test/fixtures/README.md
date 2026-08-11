@@ -4,7 +4,9 @@ Captured evidence used by the verifier test suite. Every fixture here is real
 device output unless its entry says otherwise. Negative fixtures are never
 committed as files — they are derived at test time by `mutate.ts`, which changes
 exactly one property of a genuine fixture, so a negative case can never drift
-away from the positive one it is supposed to contradict.
+away from the positive one it is supposed to contradict. `genuine.ts` holds the
+other half of the harness: loading the genuine bundle, the instant its chain is
+judged at, and the `verifyAttestation` seam every test enters through.
 
 ## `android-tee-genuine.json`
 
@@ -25,6 +27,11 @@ A genuine Android Keystore attestation bundle, exported by the example app's
 Chain anchoring to a pinned Google root, the attested security level, key
 origin, verified-boot state, and that the attested leaf key is the claimed JWK.
 That covers the checks in #76 and #78.
+
+Its chain expires — the intermediates on 2030-04-26 — so the suite judges
+validity at the fixed `GENUINE_CHAIN_VALID_AT` exported by `mutate.ts` rather
+than at the wall clock. Tests that need an out-of-window chain pass their own
+instant instead of editing the fixture; that is what `verificationTime` is for.
 
 ### What this fixture CANNOT prove — read before using it
 
@@ -59,3 +66,27 @@ Note that this bundle's copy of the root certificate is an **older issuance**
 than the one Google currently publishes: same subject, same public key, and a
 different validity window (2019–2034 here, 2022–2042 published). This is why
 anchoring must compare public keys rather than certificate bytes.
+
+## Derived negatives (`android-chain.test.ts`)
+
+Each is one changed value on the genuine bundle, or a throwaway certificate
+generated in the test run. None is committed, and none is evidence about
+hardware — a synthetic key proves only that a code path runs.
+
+| Derived case | How | What it refuses |
+| --- | --- | --- |
+| Re-rooted chain | `x5c[3]` replaced with a self-signed CA carrying the real root's subject DN but an attacker's key | anchoring |
+| Truncated chain | `x5c` cut to the leaf alone | anchoring |
+| Wrong anchor pinned | only the EC root pinned against an RSA-rooted chain | anchoring |
+| Broken link | `x5c[1]` replaced with the root certificate | issuer signature |
+| Expired / not yet valid | `verificationTime` moved to 2050 / 2019 | validity window |
+| Unparseable anchor | a junk PEM passed as `trust.googleRootsPem` | trust-store misconfiguration |
+
+Synthetic *positive* chains appear there too — a P-384-rooted leaf/root pair for
+the Remote-Key-Provisioning shape no captured bundle covers yet, and CA
+certificates whose windows straddle the current instant, which is how the
+default `verificationTime` is tested without depending on the calendar.
+
+Together with the genuine bundle these discharge the chain-anchoring half of
+acceptance row 9 (server validation against real roots); the key-property half
+lands with #78.

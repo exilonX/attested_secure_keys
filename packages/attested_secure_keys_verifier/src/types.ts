@@ -53,8 +53,8 @@ export interface VerifyOptions {
    *
    * Supply it to verify a bundle as of a fixed point — which is the only way to
    * test the expiry rejection path against a fixture whose chain is currently
-   * valid. Chain validity is enforced by the Android path (#76); this option is
-   * carried to it and does not affect any verdict on its own.
+   * valid. The Android path refuses a chain holding a certificate outside its
+   * validity window at this instant, so this option decides that verdict.
    */
   verificationTime?: Date;
   /**

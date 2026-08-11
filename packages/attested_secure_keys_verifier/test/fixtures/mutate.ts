@@ -1,24 +1,3 @@
-import { readFileSync } from 'node:fs';
-
-import type { Jwk, NormalizedAttestation } from '../../src/types.js';
-
-/** The shape the example app's "Copy JSON" button exports. */
-export interface AndroidBundle {
-  keyId: string;
-  publicJwk: Jwk;
-  attestation: NormalizedAttestation;
-}
-
-/**
- * The genuine TEE-tier Android bundle. Read the fixtures README before asserting
- * anything about freshness with it: its attestation challenge is the alias
- * placeholder, not a server nonce.
- */
-export function loadGenuineAndroidBundle(): AndroidBundle {
-  const url = new URL('./android-tee-genuine.json', import.meta.url);
-  return JSON.parse(readFileSync(url, 'utf8')) as AndroidBundle;
-}
-
 /**
  * Derive a negative fixture from a genuine one by changing exactly one value.
  *

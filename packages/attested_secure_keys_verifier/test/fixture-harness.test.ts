@@ -10,41 +10,11 @@ import {
   GOOGLE_ATTESTATION_ROOT_EC_PEM,
   GOOGLE_ATTESTATION_ROOT_RSA_PEM,
 } from '../src/roots.js';
-import type { VerifyOptions, VerifyResult } from '../src/types.js';
-import { verifyAttestation } from '../src/verify.js';
-import {
-  countLeafDifferences,
-  loadGenuineAndroidBundle,
-  mutated,
-} from './fixtures/mutate.js';
+import { loadGenuineAndroidBundle, verifyGenuine } from './fixtures/genuine.js';
+import { countLeafDifferences, mutated } from './fixtures/mutate.js';
 
 if (!globalThis.crypto) {
   (globalThis as { crypto?: Crypto }).crypto = webcrypto as Crypto;
-}
-
-/**
- * The challenge this fixture actually carries. It is the alias placeholder the
- * plugin substitutes when `generateKey` is called with no `attestationChallenge`
- * — NOT a server nonce. See the fixtures README: this bundle cannot demonstrate
- * freshness, only that the comparison runs.
- */
-const FIXTURE_CHALLENGE = new TextEncoder().encode('demo.holderKey');
-
-/**
- * Drive the genuine fixture through the public seam. Tests enter here rather
- * than calling the Android verifier directly: `verifyAttestation` is the
- * boundary a relying party integrates against, so a passing test is evidence
- * about the thing being shipped.
- */
-function verifyGenuine(
-  overrides: Partial<VerifyOptions> = {},
-): Promise<VerifyResult> {
-  const bundle = loadGenuineAndroidBundle();
-  return verifyAttestation(bundle.attestation, {
-    expectedNonce: FIXTURE_CHALLENGE,
-    expectedJwk: bundle.publicJwk,
-    ...overrides,
-  });
 }
 
 // --- The pinned anchors --------------------------------------------------
@@ -88,7 +58,8 @@ test('the genuine TEE bundle reaches Android verification through verifyAttestat
 
   assert.equal(result.attestationType, 'android-key');
   // Chain decoded and the challenge matched, so we are past parsing and into
-  // the checks #76/#78 will implement. The verdict stays false until they do.
+  // the key-property checks #78 will implement. The verdict stays false until
+  // they exist.
   assert.equal(result.verified, false);
   assert.ok(
     result.reasons.some((r) => r.includes('Decoded chain')),
@@ -111,23 +82,8 @@ test('a wrong expected nonce is refused, naming the challenge', async () => {
   assert.match(result.reasons.join(' '), /attestationChallenge/);
 });
 
-// --- Injectable verification time ----------------------------------------
-
-test('a caller-supplied verification time is accepted', async () => {
-  const result = await verifyGenuine({
-    verificationTime: new Date('2027-01-01T00:00:00Z'),
-  });
-
-  assert.equal(result.attestationType, 'android-key');
-});
-
-test('omitting the verification time does not change the outcome', async () => {
-  const withTime = await verifyGenuine({ verificationTime: new Date() });
-  const withoutTime = await verifyGenuine();
-
-  assert.deepEqual(withoutTime.reasons, withTime.reasons);
-  assert.equal(withoutTime.verified, withTime.verified);
-});
+// The injected verification time is exercised where it is consumed — see
+// `android-chain.test.ts`.
 
 // --- The mutation helper -------------------------------------------------
 
