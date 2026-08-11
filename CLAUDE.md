@@ -122,6 +122,8 @@ Each step runs through `.github/scripts/publish-if-new.sh`, which skips a packag
 
 ## Key docs
 
+- `CODING_STANDARDS.md` — **read before changing code.** Section 1 lists the invariants (fail-closed, first-party crypto only, no network in the plugin, raw `R‖S`, never hand-edit Pigeon output) that outrank ordinary style judgement. `/code-review` checks against it.
+- `CONTRIBUTING.md` — dev setup, the commands CI runs, Pigeon regeneration, device-testing expectations, PR conventions.
 - `README.md` — features, quick start, test matrix.
 - `CONTEXT.md` — pick-it-up-cold orientation doc, current on-device state, open items, and gotchas (e.g. `userAuthType` is a `HardwareAuthenticatorType` bitmask, not app-layer `BIOMETRIC_STRONG`).
 - `doc/DESIGN.md` — design rationale. `doc/DEVICE_TESTING.md` / `doc/FIREBASE_TEST_LAB.md` — device-test setup.
