@@ -71,12 +71,17 @@ test('android with an empty chain fails (does not throw)', async () => {
   assert.ok(result.reasons.length > 0);
 });
 
-test('an unconfigured trust store throws a clear error', async () => {
+test('an explicitly empty trust store throws a clear error', async () => {
+  // The package now ships pinned Google roots, so the default store verifies.
+  // This guard exists for a caller who deliberately passes no anchors.
   await assert.rejects(
     () =>
       verifyAttestation(
         { type: 'android-key', encoding: 'x5c-der', x5c: ['x'], nonce: '' },
-        { expectedNonce: new Uint8Array() },
+        {
+          expectedNonce: new Uint8Array(),
+          trust: { googleRootsPem: [], appleRootPem: '' },
+        },
       ),
     /No manufacturer roots configured/,
   );

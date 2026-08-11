@@ -1,0 +1,12 @@
+{
+  // The build config compiles `src` into `dist`, so it deliberately excludes
+  // `test`. That left test code — including the fixture harness the negative
+  // fixtures are derived by — unchecked by `npm run typecheck`. This config
+  // type-checks both without emitting anything.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src", "test"]
+}

@@ -13,6 +13,12 @@ export interface AndroidVerifyInput {
   expectedJwk?: Jwk;
   trust: TrustStore;
   minSecurityLevel: SecurityLevel;
+  /**
+   * Instant at which certificate validity is judged. Resolved by the caller, so
+   * this is always set. Consumed when chain verification lands (#76); until
+   * then it is carried but not read, and no verdict depends on it.
+   */
+  verificationTime: Date;
 }
 
 /**

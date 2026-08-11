@@ -44,7 +44,7 @@ cd packages/attested_secure_keys/example && flutter test integration_test
 
 # 4. Verifier (Node/TS) — from packages/attested_secure_keys_verifier:
 npm ci && npm run typecheck && npm test
-npm run verify:local -- atestat.json     # local attestation self-check (needs node + openssl)
+npm run verify:local -- test/fixtures/android-tee-genuine.json   # local self-check (needs node + openssl)
 ```
 
 ### Run the demo (real device — hardware paths need real HW)

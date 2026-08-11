@@ -46,8 +46,17 @@ export interface VerifyOptions {
   appId?: string;
   /** Minimum acceptable hardware level (default `trustedEnvironment`). */
   minSecurityLevel?: SecurityLevel;
-  /** Trust anchors; falls back to the (currently empty) pinned roots in roots.ts. */
+  /** Trust anchors; falls back to the pinned Google roots in roots.ts. */
   trust?: TrustStore;
+  /**
+   * The instant at which certificate validity is judged. Defaults to now.
+   *
+   * Supply it to verify a bundle as of a fixed point — which is the only way to
+   * test the expiry rejection path against a fixture whose chain is currently
+   * valid. Chain validity is enforced by the Android path (#76); this option is
+   * carried to it and does not affect any verdict on its own.
+   */
+  verificationTime?: Date;
   /**
    * iOS App Attest environment for attestation: `true` = sandbox/development
    * (default), `false` = production. Must match the build's

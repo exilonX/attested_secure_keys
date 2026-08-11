@@ -89,12 +89,18 @@ cd packages/attested_secure_keys/example && flutter run
 # watch native logs:  adb logcat -s AttestedSecureKeys
 
 # Local attestation self-check (no backend; needs node + openssl):
-cd packages/attested_secure_keys_verifier && npm run verify:local -- atestat.json
+cd packages/attested_secure_keys_verifier
+npm run verify:local -- test/fixtures/android-tee-genuine.json
 ```
 
-`atestat.json` is a saved sample Copy-JSON bundle used as a fixture for the local
-verifier. (It was exported pre-M1, so its freshness check fails — re-export from a
-rebuilt app to see it pass.)
+`test/fixtures/android-tee-genuine.json` is a saved sample Copy-JSON bundle (it
+lived at the package root as `atestat.json` until it became a test fixture). Its
+freshness check fails by design: the key was generated with no
+`attestationChallenge`, so the certificate carries the alias placeholder
+`demo.holderKey` rather than a server nonce. Re-export from a rebuilt app that
+passes a real nonce to see that check pass. See
+`packages/attested_secure_keys_verifier/test/fixtures/README.md` for what the
+fixture can and cannot prove.
 
 ### Tests in place
 - **Dart unit** — `packages/attested_secure_keys/test/` (facade, options, encoding;

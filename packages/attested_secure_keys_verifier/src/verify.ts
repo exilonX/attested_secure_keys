@@ -17,6 +17,7 @@ export async function verifyAttestation(
 ): Promise<VerifyResult> {
   const trust = opts.trust ?? defaultTrustStore;
   const minSecurityLevel = opts.minSecurityLevel ?? 'trustedEnvironment';
+  const verificationTime = opts.verificationTime ?? new Date();
 
   switch (attestation.type) {
     case 'android-key':
@@ -27,6 +28,7 @@ export async function verifyAttestation(
         expectedJwk: opts.expectedJwk,
         trust,
         minSecurityLevel,
+        verificationTime,
       });
 
     case 'apple-appattest':
