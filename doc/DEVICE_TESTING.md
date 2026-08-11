@@ -81,6 +81,64 @@ does) or biometric-gated signing throws.
    bytes (the CBOR object). Without the entitlement: `AttestationUnavailableError`.
 7. **Copy JSON** → save for step C. **Delete** → re-Sign → `KeyNotFoundError`.
 
+### B2. Capturing the App Attest fixture (issue #77)
+
+The verifier's iOS path has only ever been observed *rejecting* synthesised
+input. Proving it accepts truth needs a genuine bundle, and that needs a Mac, a
+real device and a signing identity. Follow this exactly — a bundle whose nonce,
+claimed key or environment was not recorded **cannot be verified by anyone
+later**, because the expected challenge is reconstructed from them.
+
+**The one-time project fix.** The example app carries `DEVELOPMENT_TEAM =
+N9KF4G6HY7` and bundle id `io.github.exilonx.attestedSecureKeysExample`, but
+**no entitlements file is committed**, so a fresh clone cannot attest at all.
+In Xcode: open `packages/attested_secure_keys/example/ios/Runner.xcworkspace` →
+*Runner* target → *Signing & Capabilities* → **+ Capability** → **App Attest**.
+That generates `Runner.entitlements` with
+`com.apple.developer.devicecheck.appattest-environment = development`.
+**Commit that file** so nobody repeats this step.
+
+**Order matters — attestation first, then assertion.** The plugin attests *once
+per install* and caches the App Attest key id in the keychain; every later
+`attest()` returns a lightweight **assertion** instead. So:
+
+1. **Delete the app from the device first** (uninstall drops the keychain item).
+   Without this you get `apple-appassert` and no attestation to capture.
+2. `cd packages/attested_secure_keys/example && flutter run -d <device>` on
+   Flutter stable (≥ 3.27), device on the network.
+3. **Generate** → **Attest** → **Copy JSON**. `type` must read
+   `apple-appattest`. Save as
+   `packages/attested_secure_keys_verifier/test/fixtures/ios-appattest-genuine.json`.
+4. **Attest again** (same run) → **Copy JSON**. `type` now reads
+   `apple-appassert`. Save as `ios-appassert-genuine.json` — this is what #81
+   needs for `signCount` replay, and capturing it now saves a second trip.
+
+**Record alongside the fixtures**, in the fixtures README:
+
+| Field | Why it is not optional |
+| --- | --- |
+| device model + iOS version | the only hardware claim the fixture supports |
+| App Attest environment (`development` / `production`) | the verifier behaves differently; an unrecorded environment cannot be reasoned about |
+| capture date | pairs with the certificate window below |
+| the server nonce | the demo binds a fixed 32-byte value, `(i * 7 + 3) & 0xff` for `i` in 0..31 — record it explicitly rather than relying on the constant staying put |
+| the claimed `publicJwk` | `Copy JSON` already includes it; the challenge is `clientData = utf8(RFC 7638 thumbprint) ‖ nonce` |
+| the appId | `N9KF4G6HY7.io.github.exilonx.attestedSecureKeysExample` unless you re-signed |
+| the credCert `notBefore` / `notAfter` | see the warning below |
+
+> ⚠️ **Check the certificate window before assuming the fixture is permanent.**
+> `appattest-checker-node` verifies the App Attest certificates against
+> `new Date()` and offers **no way to inject a date** — unlike the Android path,
+> which takes `verificationTime`. Whatever window Apple issues those
+> certificates with, the fixture stops verifying when it closes, and the test
+> cannot be pinned to a fixed instant. If the window is short, the chain step has
+> to be taken in-house (the machinery already exists in
+> `attested_secure_keys_verifier/src/chain.ts`). Record the dates so this is a
+> decision rather than a surprise.
+
+Unlike the Android fixture, the iOS one **does** carry a real bound nonce — App
+Attest binds at `attest()` — so it genuinely exercises nonce binding, not just
+the comparison.
+
 ---
 
 ## C. Server-side attestation verification (the real proof)
