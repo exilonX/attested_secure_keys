@@ -66,7 +66,7 @@ App developers depend only on **`attested_secure_keys`**, which endorses the pla
 | `attested_secure_keys_platform_interface` | The contract, the normalized public model, and the **Pigeon schema** (single source of truth). Default impl `PigeonAttestedSecureKeys` talks to the native host APIs. |
 | `attested_secure_keys_android` | Kotlin — Keystore/StrongBox + `androidx.biometric`. First-party only. |
 | `attested_secure_keys_ios` | Swift — Secure Enclave + App Attest. **Device-verified on a physical iPhone**; CI only compiles it (native code is never *run* in CI). |
-| `attested_secure_keys_verifier` | Node/TS server-side verifier. **NOT part of the pub workspace.** Dev-only local self-check — see scope note below. |
+| `attested_secure_keys_verifier` | Node/TS server-side verifier. **NOT part of the pub workspace.** Android path complete (`doc/TRUST_MODEL.md`); iOS pending #77 — see scope note below. |
 
 ### The Pigeon boundary (the spine of this repo)
 
@@ -92,7 +92,9 @@ New platform packages should **`extend`** `AttestedSecureKeysPlatform` (the `plu
 ## Scope boundaries (explicit project decisions)
 
 - **In scope:** the plugin only — generate/store/use non-exportable, biometric-gated keys with hardware attestation. Achieved and hardware-verified on both platforms: Android at TEE tier (Xiaomi Redmi, API 30), iOS on a physical iPhone (Secure Enclave + App Attest).
-- **Out of scope (M2):** a production `attested_secure_keys_verifier` with real root-pinning + revocation, and the OID4VCI `keyattestation+jwt` wrapper. The verifier stays a **dev-only local self-check** (`verify-local.mjs`); its `verified:false` `TODO(M2)` stubs are intentionally left unimplemented.
+- **M2 verifier, Android — built** (was previously scoped out; that decision was reversed). `attested_secure_keys_verifier` makes a real trust decision: both Google roots pinned **by public key**, chain anchoring + validity + CA constraints, the attested `securityLevel` / `origin` / verified-boot state and key binding read from the **hardware-enforced** authorization list, and revocation consulted against caller-injected state. The captured TEE bundle returns `verified: true` in CI. Read `doc/TRUST_MODEL.md` before changing any of it. `verify-local.mjs` is a *separate* dev-only self-check that pins by fingerprint — do not copy that approach into the library.
+- **M2 verifier, iOS — pending, not out of scope.** The App Attest path delegates to `appattest-checker-node` and has only ever been observed *rejecting* synthesised input. Proving acceptance needs a bundle captured on real hardware (#77, human-gated), then #80/#81.
+- **Out of scope (M2):** the OID4VCI `keyattestation+jwt` wrapper.
 - **Out of scope (M3):** eIDAS/certification hardening, verified-publisher pub.dev release. This is **not** a certified eIDAS WSCD and makes no Level-of-Assurance claim.
 
 ## CI (`.github/workflows/ci.yml`)

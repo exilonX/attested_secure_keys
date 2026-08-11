@@ -197,6 +197,7 @@ open a public issue).
 
 - [`packages/attested_secure_keys/README.md`](packages/attested_secure_keys/README.md) — usage, API, assurance model
 - [`packages/attested_secure_keys_verifier/README.md`](packages/attested_secure_keys_verifier/README.md) — server-side verification
+- [`doc/TRUST_MODEL.md`](doc/TRUST_MODEL.md) — what the verifier proves and refuses, anchor provenance and rotation, and the limits of the evidence
 - [`doc/DESIGN.md`](doc/DESIGN.md) — design rationale
 - [`CONTEXT.md`](CONTEXT.md) — orientation / pick-it-up-cold doc
 

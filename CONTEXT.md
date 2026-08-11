@@ -18,11 +18,16 @@ app that needs un-exfiltratable keys can use it.
 non-exportable, biometric-gated, with hardware attestation the app can hand to a
 backend. That goal is **achieved and verified on Android hardware.**
 
+**Scope changes since that decision:**
+- **M2 — the server-side verifier: the Android path IS built** (the earlier
+  "not building this" decision was reversed). Real root-pinning by public key,
+  hardware-enforced key properties, and revocation against injected state; the
+  captured bundle verifies in CI. See `doc/TRUST_MODEL.md`. The iOS path is
+  pending a device capture (#77). `verify-local.mjs` remains a separate dev-only
+  self-check, not the library.
+
 **Out of scope (by explicit decision):**
-- **M2 — the server-side verifier** (`attested_secure_keys_verifier` doing real
-  root-pinning + revocation) and the **OID4VCI `keyattestation+jwt`** wrapper. We
-  are NOT building these. The verifier package stays a **dev-only local
-  self-check** (`verify-local.mjs`), not a production trust library.
+- The **OID4VCI `keyattestation+jwt`** wrapper.
 - **M3** — certification/eIDAS hardening, pub.dev publish under a verified
   publisher.
 - Talking to a server from the plugin — never; the plugin only produces artifacts.
@@ -38,9 +43,10 @@ Federated plugin under `packages/`:
   **Pigeon** schema (`pigeons/messages.dart`) + default `PigeonAttestedSecureKeys`.
 - `attested_secure_keys_android` — Kotlin (Keystore, first-party only).
 - `attested_secure_keys_ios` — Swift (Secure Enclave / App Attest).
-- `attested_secure_keys_verifier` — Node/TS; **dev-only** local verifier
-  (`verify-local.mjs`). The deep `verified:false` TODO(M2) stubs are intentionally
-  left unimplemented (out of scope).
+- `attested_secure_keys_verifier` — Node/TS server-side verifier. **Android path
+  complete** (`doc/TRUST_MODEL.md`); iOS pending #77. Not part of the pub
+  workspace. `verify-local.mjs` inside it is a separate dev-only self-check that
+  shells out to `openssl` — reference for *which* checks to run, not how.
 
 Regenerate Pigeon bindings after editing the schema (from the platform_interface dir):
 `dart run pigeon --input pigeons/messages.dart`.
