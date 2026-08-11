@@ -35,6 +35,10 @@ export async function verifyAttestation(
     case 'apple-appattest':
       // App Attest verification uses the Apple App Attest Root bundled with the
       // checker library, so the (Google-oriented) trust store is not consulted.
+      // `trust.appleRootPem` is deliberately empty rather than a second copy:
+      // two anchors for one decision, only one of them live, is the more
+      // dangerous arrangement — rotating the unused one would look like it had
+      // taken effect. See doc/TRUST_MODEL.md §4.
       if (!attestation.raw) {
         return {
           verified: false,

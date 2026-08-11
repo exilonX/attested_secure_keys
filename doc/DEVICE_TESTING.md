@@ -86,8 +86,15 @@ does) or biometric-gated signing throws.
 ## C. Server-side attestation verification (the real proof)
 
 Take the **Copy JSON** bundle. Run it through
-[`attested_secure_keys_verifier`](../packages/attested_secure_keys_verifier)
-(once its root-verification is implemented), or the reference tools below.
+[`attested_secure_keys_verifier`](../packages/attested_secure_keys_verifier),
+whose **Android path is complete** — it anchors the chain to the pinned Google
+roots, enforces the attested key properties, and consults the revocation state
+you inject. The checks below are what it performs, in this order; the reference
+tools are alternatives if you would rather not adopt it.
+
+Read [TRUST_MODEL.md](TRUST_MODEL.md) before deploying it: anchor provenance and
+rotation, the fact that **revocation is yours to supply**, and what the evidence
+does and does not prove.
 
 ### Android (`android-key`)
 
@@ -137,11 +144,16 @@ Reference tooling: `@peculiar/x509` + `pkijs`/`asn1js`, or end-to-end via
 | 6 | Gated key: sign without auth → `UserNotAuthenticatedError`; with prompt → succeeds | A5/B5 | ☐ |
 | 7 | Non-exportable: no API returns private bytes; delete → sign fails | A9/B7 | ☐ |
 | 8 | `attest(nonceA)` vs `attest(nonceB)` → nonce echoed; replay detectable server-side | C | ☐ |
-| 9 | Android chain validates to a published Google root; extension parses; level ∈ {TEE,StrongBox}; `origin=GENERATED`; `verifiedBoot=Verified`; revocation OK | C-Android | ☐ |
-| 10 | iOS App Attest validates to Apple root; nonce binding; RP-ID hash; signCount | C-iOS | ☐ |
+| 9 | Android chain validates to a published Google root; extension parses; level ∈ {TEE,StrongBox}; `origin=GENERATED`; `verifiedBoot=Verified`; revocation OK | C-Android | ☑ *citable* — see [TRUST_MODEL.md §7](TRUST_MODEL.md); the captured TEE bundle verifies in CI, and each property has a named refusal test |
+| 10 | iOS App Attest validates to Apple root; nonce binding; RP-ID hash; signCount | C-iOS | ☐ blocked on a device capture (#77), then #80/#81 |
 | 11 | Emitted OID4VCI `keyattestation+jwt` validates (M2) | server | ☐ |
 | 12 | Software key → server denies HIGH; library reported `software`/`none` | A/B + C | ☐ |
 
 **Bottom line:** rows 9–10 (server validation against real roots) are the
 load-bearing checks. Rows 1–8 prove the client is honest; the server is what
 makes a key trustworthy.
+
+Row 8 deserves a caveat: the committed Android fixture was generated **without**
+a server nonce, so its challenge is the alias placeholder. Verifying it exercises
+the comparison, not freshness. A capture made with a real nonce bound at
+`generateKey` is what discharges that row.

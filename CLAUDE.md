@@ -126,6 +126,7 @@ Each step runs through `.github/scripts/publish-if-new.sh`, which skips a packag
 - `CONTRIBUTING.md` — dev setup, the commands CI runs, Pigeon regeneration, device-testing expectations, PR conventions.
 - `README.md` — features, quick start, test matrix.
 - `CONTEXT.md` — pick-it-up-cold orientation doc, current on-device state, open items, and gotchas (e.g. `userAuthType` is a `HardwareAuthenticatorType` bitmask, not app-layer `BIOMETRIC_STRONG`).
+- `doc/TRUST_MODEL.md` — what the server-side verifier proves and refuses, anchor provenance + rotation, the revocation-is-injected caveat, and the fixture → acceptance-row map. Read before changing the verifier or claiming a key is trustworthy.
 - `doc/DESIGN.md` — design rationale. `doc/DEVICE_TESTING.md` / `doc/FIREBASE_TEST_LAB.md` — device-test setup.
 - `SECURITY.md` — assurance model; report vulnerabilities via GitHub private reporting, not public issues.
 

@@ -20,7 +20,12 @@ timeline after triage.
 - **Trust is established server-side.** The client-reported `securityLevel` is a
   hint only; the actual verdict comes from verifying the attestation against the
   genuine manufacturer roots. Findings about client-side `securityLevel` being
-  spoofable are by design — see the README "assurance model".
+  spoofable are by design — see the README "assurance model", and
+  [doc/TRUST_MODEL.md](doc/TRUST_MODEL.md) for what the server-side verifier
+  proves, what it refuses, and what it does **not** yet cover.
+- **Revocation is the integrator's to supply.** The verifier consults only the
+  revocation state passed to it. A deployment that passes none has not checked
+  revocation; the verdict says so in its `reasons`.
 - **The plugin performs no network I/O.** "Server-side" describes *where the
   verdict is reached*, not a call the plugin makes. The plugin produces
   artifacts (signature, attestation) and returns them to the host app; the app

@@ -102,6 +102,16 @@ passes a real nonce to see that check pass. See
 `packages/attested_secure_keys_verifier/test/fixtures/README.md` for what the
 fixture can and cannot prove.
 
+**Verifier (Node/TS), M2:** the **Android path is complete** — the chain is
+anchored to the pinned Google roots (by public key, not fingerprint), the
+attested `securityLevel` / `origin` / verified-boot state and the key binding are
+read from the *hardware-enforced* authorization list and enforced, and revocation
+is consulted against injected state. The captured TEE bundle returns
+`verified: true` in CI. The **iOS path is unchanged**: it delegates to
+`appattest-checker-node` and has only ever been observed *rejecting* synthesised
+input — a genuine capture (#77) is what makes acceptance provable. Read
+`doc/TRUST_MODEL.md` before relying on a verdict.
+
 ### Tests in place
 - **Dart unit** — `packages/attested_secure_keys/test/` (facade, options, encoding;
   fake platform). Run in CI.
@@ -127,8 +137,12 @@ fixture can and cannot prove.
 - The attestation in `userAuthType` is a `HardwareAuthenticatorType` bitmask
   (2 = FINGERPRINT), NOT the app-layer `BIOMETRIC_STRONG` — it can't prove the
   Class-3 "strong" biometric distinction.
-- `verify-local.mjs` pins the Google root by SHA-256 fingerprint
-  (`1EF1A04B…87CC`); confirm against `android.googleapis.com/attestation/root`
-  before trusting in production, and note the newer ECDSA P-384 root exists for RKP.
+- `verify-local.mjs` pins the Google root by SHA-256 **fingerprint**
+  (`1EF1A04B…87CC`). **Do not copy that approach** — the library's verifier pins
+  by **public key**, because Google re-issued the legacy RSA root with the same
+  key pair and a new validity window, so a fingerprint pin rejects genuine
+  hardware (the captured fixture carries the 2019 issuance; the published root is
+  the 2022 one). Both the RSA and the ECDSA P-384 (RKP) roots must be pinned.
+  See `doc/TRUST_MODEL.md`.
 - Trust is ALWAYS server-side; the client's `effectiveLevel` is a UX hint only.
 - Logcat tag for native diagnostics: `AttestedSecureKeys`.

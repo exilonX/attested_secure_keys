@@ -56,6 +56,11 @@ means revocation was **not** checked — the verdict then rests on everything el
 and `reasons` says so. Passing `{ entries: {} }` is the different, stronger
 statement that you checked and found nothing.
 
+📖 **[doc/TRUST_MODEL.md](../../doc/TRUST_MODEL.md)** — anchor provenance and how
+to rotate them, why anchors are pinned by public key rather than fingerprint,
+every refusal and the test that proves it, and what the evidence does *not* yet
+cover. Read it before you rely on a verdict.
+
 ## Install & build
 
 ```bash
