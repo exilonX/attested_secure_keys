@@ -21,6 +21,14 @@ timeline after triage.
   hint only; the actual verdict comes from verifying the attestation against the
   genuine manufacturer roots. Findings about client-side `securityLevel` being
   spoofable are by design — see the README "assurance model".
+- **The plugin performs no network I/O.** "Server-side" describes *where the
+  verdict is reached*, not a call the plugin makes. The plugin produces
+  artifacts (signature, attestation) and returns them to the host app; the app
+  transmits them over its own channel, and the app's server verifies them. The
+  plugin has no HTTP client, no configurable endpoint, and cannot fetch its own
+  nonce — which is why `attestationChallenge` is supplied by the caller.
+  Reports of the plugin contacting a network endpoint are therefore always in
+  scope and high priority.
 - Private key material is non-exportable and never crosses the platform channel;
   reports demonstrating key extraction are high priority.
 - **Not a certified WSCD.** This library provides hardware-backed keys plus the

@@ -165,7 +165,30 @@ acceptance checklist.
 
 The client-reported `securityLevel` is a **hint** — trust is always established
 **server-side** by verifying the attestation against the genuine manufacturer
-roots. This library is **not** a certified eIDAS WSCD and makes no Level-of-Assurance
+roots.
+
+**"Server-side" does not mean this plugin calls a server.** The plugin opens no
+network connections at all; it has no HTTP client and no endpoint to configure.
+Three separate parties are involved, and only the middle one does any networking:
+
+```
+┌──── device ───────────────────────────┐
+│  ┌────────────┐         ┌──────────┐  │  your transport  ┌─────────────┐
+│  │   plugin   │ ──────▶ │ your app │  │ ───────────────▶ │ your server │
+│  │ (no I/O)   │  bytes  │          │  │                  │  verifies   │
+│  └────────────┘         └──────────┘  │                  └─────────────┘
+│         ▲                             │
+│  Keystore / Secure Enclave            │
+└───────────────────────────────────────┘
+```
+
+The plugin **produces** artifacts — a raw `R‖S` signature, an attestation blob —
+and hands them to your app. **Your app** sends them over the channel it already
+has. **Your server** verifies them and decides whether to trust the key. That is
+why `attestationChallenge` is a parameter you pass in: the plugin cannot fetch a
+nonce, because it cannot make a request.
+
+This library is **not** a certified eIDAS WSCD and makes no Level-of-Assurance
 claim. See [`SECURITY.md`](SECURITY.md) for the assurance model, scope notes, and
 how to report a vulnerability (use GitHub's private vulnerability reporting — do not
 open a public issue).
