@@ -53,7 +53,9 @@ all the way to the genuine Google Hardware Attestation root (chain OK, leaf key 
 JWK, `attestationSecurityLevel=TrustedEnvironment`, `origin=GENERATED`,
 verifiedBoot=Verified, deviceLocked, `userAuthType` present).
 
-**iOS:** implemented but **not device-verified** (no Mac; macOS CI only compiles it).
+**iOS:** **device-verified on a physical iPhone** (Secure Enclave + App Attest), as
+of the `0.1.0` release. CI only *compiles* the Swift host API — no native tests run
+there, so iOS verification is a manual step (see `doc/DEVICE_TESTING.md` §B).
 
 ### Two important things fixed/added this round
 1. **Biometric gating bug (fixed).** `applyUserAuth` on API ≥ R called
