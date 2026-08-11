@@ -2,6 +2,7 @@ import { X509Certificate } from '@peculiar/x509';
 import * as asn1js from 'asn1js';
 
 import { verifyChainAnchoring } from './chain.js';
+import { describeError } from './errors.js';
 import type { Jwk, SecurityLevel, TrustStore, VerifyResult } from './types.js';
 
 /** OID of the Android Key attestation extension (KeyDescription). */
@@ -53,7 +54,7 @@ export async function verifyAndroidKeyAttestation(
   } catch (err) {
     return androidFail(
       reasons,
-      `Could not parse certificate chain: ${describe(err)}`,
+      `Could not parse certificate chain: ${describeError(err)}`,
     );
   }
 
@@ -146,8 +147,4 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i += 1) diff |= a[i]! ^ b[i]!;
   return diff === 0;
-}
-
-function describe(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

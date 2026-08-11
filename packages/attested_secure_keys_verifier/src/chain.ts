@@ -2,6 +2,8 @@ import { webcrypto } from 'node:crypto';
 
 import { BasicConstraintsExtension, X509Certificate } from '@peculiar/x509';
 
+import { describeError } from './errors.js';
+
 /**
  * Signature checks run against Node's own WebCrypto rather than the ambient
  * `globalThis.crypto` that `@peculiar/x509` reaches for by default: that global
@@ -115,7 +117,7 @@ function parsePinnedRoots(
       return {
         reason:
           `Configured trust anchor ${index} is not a parseable certificate: ` +
-          `${describe(err)}`,
+          `${describeError(err)}`,
       };
     }
   }
@@ -199,8 +201,4 @@ async function isSignedBy(
     // malformed value) is not a verified signature.
     return false;
   }
-}
-
-function describe(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

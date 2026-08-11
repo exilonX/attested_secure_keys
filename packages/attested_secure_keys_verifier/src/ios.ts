@@ -7,6 +7,7 @@ import {
 } from 'appattest-checker-node';
 import { decode as cborDecode } from 'cbor-x';
 
+import { describeError } from './errors.js';
 import { jwkThumbprint } from './jwk.js';
 import type { Jwk, VerifyResult } from './types.js';
 
@@ -63,7 +64,7 @@ export async function verifyAppleAppAttest(
   try {
     obj = cborDecode(b64urlToBytes(input.cborBase64Url)) as AppAttestObject;
   } catch (err) {
-    return iosFail(`Could not CBOR-decode the App Attest object: ${describe(err)}`);
+    return iosFail(`Could not CBOR-decode the App Attest object: ${describeError(err)}`);
   }
 
   if (obj.fmt !== 'apple-appattest') {
@@ -133,7 +134,7 @@ export async function verifyAppleAppAssert(
   try {
     obj = cborDecode(b64urlToBytes(input.cborBase64Url)) as AppAttestAssertion;
   } catch (err) {
-    return assertFail(`Could not CBOR-decode the App Attest assertion: ${describe(err)}`);
+    return assertFail(`Could not CBOR-decode the App Attest assertion: ${describeError(err)}`);
   }
 
   if (!obj.signature || !obj.authenticatorData) {
@@ -220,8 +221,4 @@ function assertFail(reason: string): VerifyResult {
 
 function b64urlToBytes(s: string): Uint8Array {
   return new Uint8Array(Buffer.from(s, 'base64url'));
-}
-
-function describe(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
