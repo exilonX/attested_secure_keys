@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
-import { webcrypto } from 'node:crypto';
 import { test } from 'node:test';
 
-import {
-  BasicConstraintsExtension,
-  X509Certificate,
-  X509CertificateGenerator,
-} from '@peculiar/x509';
+import { X509Certificate } from '@peculiar/x509';
 
 import {
   GOOGLE_ATTESTATION_ROOT_EC_PEM,
@@ -21,10 +16,12 @@ import {
   verifyGenuine,
 } from './fixtures/genuine.js';
 import { countLeafDifferences, mutated } from './fixtures/mutate.js';
-
-// Every signature check here is handed Node's WebCrypto explicitly, as `chain.ts`
-// does, so nothing in this file depends on `globalThis.crypto` existing.
-const crypto = webcrypto as unknown as Crypto;
+import {
+  derBase64,
+  generateCa,
+  issueLeaf,
+  type GeneratedCa,
+} from './fixtures/synthetic.js';
 
 /** Everything the verifier said, as one greppable line. */
 function said(result: VerifyResult): string {
@@ -44,84 +41,6 @@ function verifyChain(
 
 function androidAttestation(x5c: string[]): NormalizedAttestation {
   return { type: 'android-key', encoding: 'x5c-der', x5c, nonce: '' };
-}
-
-function derBase64(cert: X509Certificate | string): string {
-  const parsed = typeof cert === 'string' ? new X509Certificate(cert) : cert;
-  return Buffer.from(parsed.rawData).toString('base64');
-}
-
-interface GeneratedCa {
-  cert: X509Certificate;
-  keys: webcrypto.CryptoKeyPair;
-  /** The anchor as a caller would pin it. */
-  pem: string;
-}
-
-/**
- * A throwaway self-signed CA. Generated per test run rather than committed, so
- * it can never be mistaken for captured evidence — and so tests about *now* can
- * put their validity window either side of the current instant without ever
- * depending on the calendar.
- */
-async function generateCa(
-  name: string,
-  namedCurve: 'P-256' | 'P-384',
-  window: { from: Date; to: Date },
-): Promise<GeneratedCa> {
-  const keys = (await crypto.subtle.generateKey(
-    { name: 'ECDSA', namedCurve },
-    true,
-    ['sign', 'verify'],
-  )) as webcrypto.CryptoKeyPair;
-  const cert = await X509CertificateGenerator.createSelfSigned(
-    {
-      serialNumber: '01',
-      name,
-      notBefore: window.from,
-      notAfter: window.to,
-      signingAlgorithm: signingAlgorithmFor(namedCurve),
-      keys,
-      extensions: [new BasicConstraintsExtension(true, 2, true)],
-    },
-    crypto,
-  );
-  return { cert, keys, pem: cert.toString('pem') };
-}
-
-/** An end-entity certificate issued by `issuer` — a stand-in for a device leaf. */
-async function issueLeaf(
-  issuer: GeneratedCa,
-  namedCurve: 'P-256' | 'P-384',
-  window: { from: Date; to: Date },
-): Promise<X509Certificate> {
-  const keys = (await crypto.subtle.generateKey(
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    true,
-    ['sign', 'verify'],
-  )) as webcrypto.CryptoKeyPair;
-  return X509CertificateGenerator.create(
-    {
-      serialNumber: '02',
-      subject: 'CN=Synthetic Leaf',
-      issuer: issuer.cert.subject,
-      notBefore: window.from,
-      notAfter: window.to,
-      signingAlgorithm: signingAlgorithmFor(namedCurve),
-      signingKey: issuer.keys.privateKey,
-      publicKey: keys.publicKey,
-    },
-    crypto,
-  );
-}
-
-function signingAlgorithmFor(
-  namedCurve: 'P-256' | 'P-384',
-): webcrypto.EcdsaParams {
-  return {
-    name: 'ECDSA',
-    hash: { name: namedCurve === 'P-384' ? 'SHA-384' : 'SHA-256' },
-  };
 }
 
 function hoursFromNow(hours: number): Date {
@@ -222,9 +141,9 @@ test('a leaf/root chain anchored at an ECDSA P-384 root is accepted', async () =
   // hardware, so nothing else is asserted from it.
   const window = { from: new Date('2020-01-01'), to: new Date('2040-01-01') };
   const root = await generateCa('CN=Synthetic RKP Root', 'P-384', window);
-  const leaf = await issueLeaf(root, 'P-384', window);
+  const leaf = await issueLeaf(root, { namedCurve: 'P-384', window });
 
-  const result = await verifyAttestation(androidChain([leaf, root.cert]), {
+  const result = await verifyAttestation(androidChain([leaf.cert, root.cert]), {
     expectedNonce: GENUINE_CHALLENGE,
     verificationTime: GENUINE_CHAIN_VALID_AT,
     trust: { googleRootsPem: [root.pem], appleRootPem: '' },
@@ -348,13 +267,15 @@ test('a misconfigured trust anchor is named rather than silently skipped', async
   assert.match(said(result), /trust anchor/i);
 });
 
-// --- The verdict stays false ----------------------------------------------
+// --- Anchoring alone is never a verdict -----------------------------------
 
-test('an anchored chain is still not a verified key, and says what is missing', async () => {
-  const result = await verifyGenuine();
+test('an anchored chain carrying no attestation is still refused', async () => {
+  // Reaching a pinned root proves where a certificate came from, not what key
+  // it describes. The key's own properties are checked in
+  // `android-key-properties.test.ts`; a chain that carries none cannot pass.
+  const result = await verifyChain([derBase64(GOOGLE_ATTESTATION_ROOT_EC_PEM)]);
 
+  assert.match(said(result), /anchors to the pinned root/);
   assert.equal(result.verified, false);
-  assert.match(said(result), /TODO\(M2\)/);
-  assert.match(said(result), /securityLevel/);
-  assert.match(said(result), /revocation/);
+  assert.match(said(result), /attestation extension/);
 });

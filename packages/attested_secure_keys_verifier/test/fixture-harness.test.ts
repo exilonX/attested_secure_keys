@@ -57,14 +57,12 @@ test('the genuine TEE bundle reaches Android verification through verifyAttestat
   const result = await verifyGenuine();
 
   assert.equal(result.attestationType, 'android-key');
-  // Chain decoded and the challenge matched, so we are past parsing and into
-  // the key-property checks #78 will implement. The verdict stays false until
-  // they exist.
-  assert.equal(result.verified, false);
   assert.ok(
     result.reasons.some((r) => r.includes('Decoded chain')),
-    `expected to reach challenge matching, got: ${result.reasons.join(' | ')}`,
+    `expected the chain to be decoded, got: ${result.reasons.join(' | ')}`,
   );
+  // What the fixture proves about the verdict is asserted where those checks
+  // live — `android-chain.test.ts` and `android-key-properties.test.ts`.
 });
 
 test('the genuine bundle uses the shipped roots without the caller passing any', async () => {

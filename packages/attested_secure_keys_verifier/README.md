@@ -40,14 +40,15 @@ matches the JWK**, and checks revocation against the status list.
 
 ## Status
 
-⚠️ **M2 in progress.** On the Android path, decoding, **chain anchoring to the
-pinned Google roots** (validity windows, issuer signatures, CA constraints,
-public-key — not fingerprint — matching of the anchor) and the anti-replay
-challenge match are in place. The key's own attested properties
-(`securityLevel` / `origin` / boot state / JWK binding) and revocation are still
-marked `TODO(M2)`, so `verifyAttestation` returns `verified: false` with explicit
-`reasons` naming what was checked and what was not. **Do not use for production
-trust decisions yet.**
+⚠️ **M2 in progress.** The **Android path now returns `verified: true`** for a
+genuine bundle: the chain is anchored to the pinned Google roots (validity
+windows, issuer signatures, CA constraints, public-key — not fingerprint —
+matching of the anchor), the challenge is matched against your nonce, and the
+attested `securityLevel` / `origin` / verified-boot state and the key binding are
+read from the **hardware-enforced** authorization list and enforced. Revocation
+is still `TODO(M2)`, and a positive verdict says so in its `reasons`. The iOS
+path is unchanged pending its own fixtures. **Not yet audited for production
+trust decisions.**
 
 ## Install & build
 

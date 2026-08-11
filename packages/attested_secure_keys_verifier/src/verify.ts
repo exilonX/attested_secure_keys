@@ -47,6 +47,7 @@ export async function verifyAttestation(
         expectedJwk: opts.expectedJwk,
         appId: opts.appId,
         developmentEnv: opts.appAttestDevelopmentEnv ?? true,
+        minSecurityLevel,
       });
 
     case 'apple-appassert':

@@ -87,6 +87,30 @@ the Remote-Key-Provisioning shape no captured bundle covers yet, and CA
 certificates whose windows straddle the current instant, which is how the
 default `verificationTime` is tested without depending on the calendar.
 
+## Synthetic attestations (`synthetic.ts`, used by `android-key-properties.test.ts`)
+
+Anything inside the attestation extension **cannot** be varied by mutation: the
+leaf's signature covers it, so an edited `origin` makes the chain fail as
+*broken* long before origin is read. Those negatives are built instead — a
+crafted `KeyDescription` in a leaf signed by a CA the test pins.
+
+`GENUINE_SHAPED_KEY` mirrors the captured bundle field for field (KeyMint 4, TEE
+tier, `origin=GENERATED`, `rootOfTrust{locked, Verified}`), so each negative
+still differs from a passing case in exactly one value:
+
+| Derived case | What it refuses |
+| --- | --- |
+| `origin = IMPORTED` | a key imported into the keystore, not minted in it |
+| `origin` absent from the hardware list | a property the keystore never attested |
+| `verifiedBootState = Unverified` / `Failed` | a device that did not boot verified |
+| `rootOfTrust` absent | an unproven boot state |
+| levels set to `Software` | a software key under a hardware policy |
+| properties present **only** in `softwareEnforced` | claims made by the OS rather than the keystore |
+
+A synthetic key proves a code path is enforced. It proves nothing about
+hardware — these keys come from Node, not a keystore. Hardware claims rest on
+the captured bundle alone.
+
 Together with the genuine bundle these discharge the chain-anchoring half of
 acceptance row 9 (server validation against real roots); the key-property half
 lands with #78.

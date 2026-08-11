@@ -9,7 +9,11 @@ import { decode as cborDecode } from 'cbor-x';
 
 import { describeError } from './errors.js';
 import { jwkThumbprint } from './jwk.js';
-import type { Jwk, VerifyResult } from './types.js';
+import { meetsMinimum } from './security-level.js';
+import type { Jwk, SecurityLevel, VerifyResult } from './types.js';
+
+/** Every key App Attest vouches for lives in the Secure Enclave. */
+const IOS_SECURITY_LEVEL: SecurityLevel = 'secureEnclave';
 
 export interface IosVerifyInput {
   /** base64url App Attest CBOR object. */
@@ -21,6 +25,12 @@ export interface IosVerifyInput {
   appId?: string;
   /** Sandbox (development) vs production App Attest environment. */
   developmentEnv: boolean;
+  /**
+   * Minimum acceptable level, judged by the same comparator the Android path
+   * uses. Optional only for callers of this function directly;
+   * `verifyAttestation` always resolves it.
+   */
+  minSecurityLevel?: SecurityLevel;
 }
 
 export interface IosAssertInput {
@@ -79,6 +89,13 @@ export async function verifyAppleAppAttest(
   if (!input.appId) {
     return iosFail('appId ("<TeamID>.<BundleID>") is required to verify the RP-ID hash.');
   }
+  const minSecurityLevel = input.minSecurityLevel ?? 'trustedEnvironment';
+  if (!meetsMinimum(IOS_SECURITY_LEVEL, minSecurityLevel)) {
+    return iosFail(
+      `Attested security level ${IOS_SECURITY_LEVEL} is below the required ` +
+        `${minSecurityLevel}.`,
+    );
+  }
 
   // The App Attest key id is base64(credId), and credId is embedded in authData.
   const keyId = deriveKeyId(obj.authData);
@@ -109,7 +126,7 @@ export async function verifyAppleAppAttest(
   return {
     verified: true,
     attestationType: 'apple-appattest',
-    securityLevel: 'secureEnclave',
+    securityLevel: IOS_SECURITY_LEVEL,
     publicJwk: input.expectedJwk,
     keyId: await jwkThumbprint(input.expectedJwk),
     appAttestPublicKeyPem: result.publicKeyPem,
@@ -182,7 +199,7 @@ export async function verifyAppleAppAssert(
   return {
     verified: true,
     attestationType: 'apple-appassert',
-    securityLevel: 'secureEnclave',
+    securityLevel: IOS_SECURITY_LEVEL,
     publicJwk: input.expectedJwk,
     keyId: await jwkThumbprint(input.expectedJwk),
     signCount: result.signCount,
