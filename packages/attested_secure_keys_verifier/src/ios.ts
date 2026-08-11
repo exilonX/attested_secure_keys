@@ -9,11 +9,19 @@ import { decode as cborDecode } from 'cbor-x';
 
 import { describeError } from './errors.js';
 import { jwkThumbprint } from './jwk.js';
-import { meetsMinimum } from './security-level.js';
-import type { Jwk, SecurityLevel, VerifyResult } from './types.js';
+import { APP_ATTEST_SECURITY_LEVEL } from './security-level.js';
+import type { Jwk, VerifyResult } from './types.js';
 
-/** Every key App Attest vouches for lives in the Secure Enclave. */
-const IOS_SECURITY_LEVEL: SecurityLevel = 'secureEnclave';
+/**
+ * Every key App Attest vouches for lives in the Secure Enclave, and that level
+ * is joint-highest on the shared scale in `security-level.ts` — so no
+ * `minSecurityLevel` a caller can express refuses an iOS key. There is
+ * deliberately no comparison here: a branch that cannot be reached cannot be
+ * tested, and an untestable refusal in a security path is worse than none. If
+ * the scale ever gains a level above the Secure Enclave, this is where the
+ * check belongs, alongside the other iOS policy work in #80/#81.
+ */
+const IOS_SECURITY_LEVEL = APP_ATTEST_SECURITY_LEVEL;
 
 export interface IosVerifyInput {
   /** base64url App Attest CBOR object. */
@@ -25,12 +33,6 @@ export interface IosVerifyInput {
   appId?: string;
   /** Sandbox (development) vs production App Attest environment. */
   developmentEnv: boolean;
-  /**
-   * Minimum acceptable level, judged by the same comparator the Android path
-   * uses. Optional only for callers of this function directly;
-   * `verifyAttestation` always resolves it.
-   */
-  minSecurityLevel?: SecurityLevel;
 }
 
 export interface IosAssertInput {
@@ -89,14 +91,6 @@ export async function verifyAppleAppAttest(
   if (!input.appId) {
     return iosFail('appId ("<TeamID>.<BundleID>") is required to verify the RP-ID hash.');
   }
-  const minSecurityLevel = input.minSecurityLevel ?? 'trustedEnvironment';
-  if (!meetsMinimum(IOS_SECURITY_LEVEL, minSecurityLevel)) {
-    return iosFail(
-      `Attested security level ${IOS_SECURITY_LEVEL} is below the required ` +
-        `${minSecurityLevel}.`,
-    );
-  }
-
   // The App Attest key id is base64(credId), and credId is embedded in authData.
   const keyId = deriveKeyId(obj.authData);
   if (!keyId) {

@@ -40,15 +40,21 @@ matches the JWK**, and checks revocation against the status list.
 
 ## Status
 
-⚠️ **M2 in progress.** The **Android path now returns `verified: true`** for a
-genuine bundle: the chain is anchored to the pinned Google roots (validity
-windows, issuer signatures, CA constraints, public-key — not fingerprint —
-matching of the anchor), the challenge is matched against your nonce, and the
-attested `securityLevel` / `origin` / verified-boot state and the key binding are
-read from the **hardware-enforced** authorization list and enforced. Revocation
-is still `TODO(M2)`, and a positive verdict says so in its `reasons`. The iOS
-path is unchanged pending its own fixtures. **Not yet audited for production
+⚠️ **M2 in progress.** The **Android path is complete**: the chain is anchored to
+the pinned Google roots (validity windows, issuer signatures, CA constraints,
+public-key — not fingerprint — matching of the anchor), the challenge is matched
+against your nonce, the attested `securityLevel` / `origin` / verified-boot state
+and the key binding are read from the **hardware-enforced** authorization list
+and enforced, and revocation is consulted against the state you inject. A
+genuine bundle returns `verified: true`; every failure has its own reason. The
+iOS path is unchanged pending its own fixtures. **Not yet audited for production
 trust decisions.**
+
+**Revocation is injected, never fetched.** The verifier makes no outbound
+request, so it consults only what you pass as `opts.revocation`. Omitting it
+means revocation was **not** checked — the verdict then rests on everything else,
+and `reasons` says so. Passing `{ entries: {} }` is the different, stronger
+statement that you checked and found nothing.
 
 ## Install & build
 
@@ -69,6 +75,7 @@ const result = await verifyAttestation(attestationJsonFromClient, {
   expectedJwk: clientPublicJwk,      // the JWK the client registered
   appId: '<TeamID>.<BundleID>',      // iOS only
   minSecurityLevel: 'trustedEnvironment',
+  revocation: yourCachedStatusList,  // omit and revocation is NOT checked
 });
 
 if (result.verified) {

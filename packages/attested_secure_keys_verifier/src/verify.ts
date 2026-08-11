@@ -29,6 +29,7 @@ export async function verifyAttestation(
         trust,
         minSecurityLevel,
         verificationTime,
+        revocation: opts.revocation,
       });
 
     case 'apple-appattest':
@@ -47,7 +48,6 @@ export async function verifyAttestation(
         expectedJwk: opts.expectedJwk,
         appId: opts.appId,
         developmentEnv: opts.appAttestDevelopmentEnv ?? true,
-        minSecurityLevel,
       });
 
     case 'apple-appassert':

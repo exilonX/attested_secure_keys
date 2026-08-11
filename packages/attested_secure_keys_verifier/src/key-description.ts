@@ -10,9 +10,12 @@ export interface RootOfTrust {
   verifiedBootState: number;
 }
 
-/** The subset of an `AuthorizationList` this verifier acts on. */
+/**
+ * The subset of an `AuthorizationList` this verifier acts on. Deliberately not
+ * every tag Android can emit: a field nothing enforces is a field a reader can
+ * mistake for one that is checked.
+ */
 export interface AuthorizationList {
-  purpose?: number[];
   /** `GENERATED(0) | DERIVED(1) | IMPORTED(2) | UNKNOWN(3)` */
   origin?: number;
   rootOfTrust?: RootOfTrust;
@@ -42,7 +45,6 @@ export interface KeyDescription {
 
 /** Context tag numbers within an `AuthorizationList`. */
 const TAG = {
-  purpose: 1,
   origin: 702,
   rootOfTrust: 704,
 } as const;
@@ -68,12 +70,17 @@ const TAG = {
 export function parseKeyDescription(
   extensionValue: ArrayBuffer,
 ): KeyDescription | null {
-  let root: asn1js.AsnType;
+  let decoded: asn1js.FromBerResult;
   try {
-    root = asn1js.fromBER(extensionValue).result;
+    decoded = asn1js.fromBER(extensionValue);
   } catch {
     return null;
   }
+  // asn1js signals a decode failure by offset, not by throwing, and still hands
+  // back a partially populated result — which would otherwise read as a valid
+  // KeyDescription with everything after the damage silently absent.
+  if (decoded.offset === -1) return null;
+  const root = decoded.result;
   if (!(root instanceof asn1js.Sequence)) return null;
 
   const fields = root.valueBlock.value;
@@ -125,20 +132,9 @@ function authorizationListAt(
   }
 
   return {
-    purpose: purposeOf(tagged.get(TAG.purpose)),
     origin: integerValue(tagged.get(TAG.origin)) ?? undefined,
     rootOfTrust: rootOfTrustOf(tagged.get(TAG.rootOfTrust)),
   };
-}
-
-function purposeOf(value: asn1js.AsnType | undefined): number[] | undefined {
-  if (!(value instanceof asn1js.Set)) return undefined;
-  const purposes: number[] = [];
-  for (const item of value.valueBlock.value) {
-    const purpose = integerValue(item);
-    if (purpose !== null) purposes.push(purpose);
-  }
-  return purposes;
 }
 
 function rootOfTrustOf(

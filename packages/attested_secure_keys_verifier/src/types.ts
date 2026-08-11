@@ -37,6 +37,27 @@ export interface TrustStore {
   appleRootPem: string;
 }
 
+/** What the status list says about one certificate. */
+export interface RevocationEntry {
+  /** `REVOKED` is permanent; `SUSPENDED` is temporary. Both are refused. */
+  status: 'REVOKED' | 'SUSPENDED';
+  /** e.g. `KEY_COMPROMISE`, `SOFTWARE_FLAW` — echoed into the refusal reason. */
+  reason?: string;
+  comment?: string;
+}
+
+/**
+ * Certificate revocation state, injected the same way trust anchors are.
+ *
+ * Shaped after Google's attestation status list
+ * (`https://android.googleapis.com/attestation/status`): entries keyed by
+ * certificate serial number in hex. Fetch, cache and refresh it yourself — the
+ * verifier makes no outbound request, so it can only consult what you hand it.
+ */
+export interface RevocationStatus {
+  entries: Record<string, RevocationEntry>;
+}
+
 export interface VerifyOptions {
   /** The exact nonce your server issued for this registration. */
   expectedNonce: Uint8Array;
@@ -48,6 +69,13 @@ export interface VerifyOptions {
   minSecurityLevel?: SecurityLevel;
   /** Trust anchors; falls back to the pinned Google roots in roots.ts. */
   trust?: TrustStore;
+  /**
+   * Revocation state to consult. **Omitting it means revocation is not
+   * checked** — the verdict then rests on everything else, and `reasons` says
+   * so plainly. Pass `{ entries: {} }` to state that you checked and found
+   * nothing; that is a different claim from passing nothing at all.
+   */
+  revocation?: RevocationStatus;
   /**
    * The instant at which certificate validity is judged. Defaults to now.
    *
@@ -79,6 +107,12 @@ export interface VerifyResult {
   verified: boolean;
   attestationType: NormalizedAttestation['type'];
   securityLevel?: SecurityLevel;
+  /**
+   * Android only: the device's bootloader lock state, as attested. Reported
+   * rather than enforced — an unlocked bootloader does not fail verification, so
+   * apply your own policy to this field. Absent when nothing attested to it.
+   */
+  deviceLocked?: boolean;
   publicJwk?: Jwk;
   /** RFC 7638 thumbprint of the attested key. */
   keyId?: string;

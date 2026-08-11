@@ -81,6 +81,7 @@ hardware — a synthetic key proves only that a code path runs.
 | Broken link | `x5c[1]` replaced with the root certificate | issuer signature |
 | Expired / not yet valid | `verificationTime` moved to 2050 / 2019 | validity window |
 | Unparseable anchor | a junk PEM passed as `trust.googleRootsPem` | trust-store misconfiguration |
+| Revoked / suspended | the chain's own serial injected as `opts.revocation` | withdrawn certificate |
 
 Synthetic *positive* chains appear there too — a P-384-rooted leaf/root pair for
 the Remote-Key-Provisioning shape no captured bundle covers yet, and CA

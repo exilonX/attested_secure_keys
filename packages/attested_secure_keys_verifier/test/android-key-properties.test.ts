@@ -69,15 +69,15 @@ test('a positive verdict states plainly that revocation was not checked', async 
   assert.match(said(result), /revocation/i);
 });
 
-test('the device lock state is surfaced on the verdict', async () => {
+test('the device lock state is surfaced as a field, not only as prose', async () => {
+  // A relying party applies its own policy to unlocked bootloaders, and cannot
+  // do that against free text in `reasons`.
   const result = await verifyGenuine();
 
-  assert.match(said(result), /locked/i);
+  assert.equal(result.deviceLocked, true);
 });
 
 test('an unlocked device still verifies — the lock policy is the caller’s', async () => {
-  // Surfaced, not enforced: #74 asks for the state to be reported so a relying
-  // party can apply its own policy to unlocked bootloaders.
   const result = await verifySynthetic({
     teeEnforced: {
       rootOfTrust: {
@@ -88,6 +88,7 @@ test('an unlocked device still verifies — the lock policy is the caller’s', 
   });
 
   assert.equal(result.verified, true, said(result));
+  assert.equal(result.deviceLocked, false);
   assert.match(said(result), /not locked|unlocked/i);
 });
 

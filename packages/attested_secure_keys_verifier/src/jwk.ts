@@ -41,10 +41,26 @@ export async function certificatePublicJwk(
       crv: exported.crv,
       x: exported.x,
       y: exported.y,
-      alg: 'ES256',
+      // Derived from the curve the certificate actually carries, and omitted
+      // for a curve with no JOSE name. This JWK is handed back as what the
+      // attestation proves, so no member of it may be a value we assumed.
+      ...(joseAlgorithmFor(exported.crv) ?? {}),
     };
   } catch {
     return null;
+  }
+}
+
+function joseAlgorithmFor(crv: string): { alg: string } | null {
+  switch (crv) {
+    case 'P-256':
+      return { alg: 'ES256' };
+    case 'P-384':
+      return { alg: 'ES384' };
+    case 'P-521':
+      return { alg: 'ES512' };
+    default:
+      return null;
   }
 }
 

@@ -22,6 +22,16 @@ const RANK: Record<SecurityLevel, number> = {
 };
 
 /**
+ * The level every App Attest key sits at. Kept here so both platforms' levels
+ * are defined against the one scale rather than each path holding its own.
+ *
+ * Note it is joint-highest, so no policy expressible through `minSecurityLevel`
+ * can refuse an iOS key today. That is a property of the scale, not an
+ * oversight — see the note in `ios.ts`.
+ */
+export const APP_ATTEST_SECURITY_LEVEL: SecurityLevel = 'secureEnclave';
+
+/**
  * Whether an attested level satisfies a caller's minimum.
  *
  * An `unknown` attested level never satisfies anything, including a minimum of
@@ -34,6 +44,19 @@ export function meetsMinimum(
 ): boolean {
   if (attested === 'unknown') return false;
   return RANK[attested] >= RANK[minimum];
+}
+
+/**
+ * The refusal for a level that falls short, or null when it does not — the one
+ * place the policy is both judged and worded, so an integrator's log reads the
+ * same whichever platform produced the key.
+ */
+export function securityLevelRefusal(
+  attested: SecurityLevel,
+  minimum: SecurityLevel,
+): string | null {
+  if (meetsMinimum(attested, minimum)) return null;
+  return `Attested security level ${attested} is below the required ${minimum}.`;
 }
 
 /** The weaker of two attested levels — a claim is only as good as its support. */

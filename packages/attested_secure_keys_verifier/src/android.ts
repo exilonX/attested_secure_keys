@@ -8,12 +8,19 @@ import {
   type AuthorizationList,
   type KeyDescription,
 } from './key-description.js';
+import { findWithdrawnCertificate } from './revocation.js';
 import {
   androidSecurityLevel,
-  meetsMinimum,
+  securityLevelRefusal,
   weakerOf,
 } from './security-level.js';
-import type { Jwk, SecurityLevel, TrustStore, VerifyResult } from './types.js';
+import type {
+  Jwk,
+  RevocationStatus,
+  SecurityLevel,
+  TrustStore,
+  VerifyResult,
+} from './types.js';
 
 /** OID of the Android Key attestation extension (KeyDescription). */
 const ANDROID_KEY_ATTESTATION_OID = '1.3.6.1.4.1.11129.2.1.17';
@@ -45,6 +52,8 @@ export interface AndroidVerifyInput {
    * this is always set.
    */
   verificationTime: Date;
+  /** Injected revocation state; absent means revocation is not checked. */
+  revocation?: RevocationStatus;
 }
 
 /**
@@ -61,7 +70,8 @@ export interface AndroidVerifyInput {
  * 4. the attested key is the key the client claims to hold.
  *
  * Every attested property is read from the hardware-enforced authorization list.
- * Revocation is not consulted — a caller is told so on the verdict.
+ * Revocation is consulted only against `input.revocation`; a caller who supplies
+ * none has not checked revocation and is told so on the verdict.
  *
  * For a production implementation you may delegate to `@simplewebauthn/server`
  * or `fido2-lib`, which both implement the `android-key` format end to end.
@@ -99,6 +109,18 @@ export async function verifyAndroidKeyAttestation(
   if (!anchoring.anchored) return androidFail(reasons, anchoring.reason);
   reasons.push(...anchoring.notes);
 
+  // Asked right after anchoring: a chain that reaches a pinned root is trusted
+  // only until that root's operator withdraws one of its certificates, and a
+  // withdrawn chain should not have its contents interpreted at all.
+  if (input.revocation) {
+    const withdrawn = findWithdrawnCertificate(chain, input.revocation);
+    if (withdrawn) return androidFail(reasons, withdrawn);
+    reasons.push(
+      'No certificate in the chain appears in the supplied revocation state ' +
+        `(${Object.keys(input.revocation.entries).length} entries).`,
+    );
+  }
+
   const ext = leaf.getExtension(ANDROID_KEY_ATTESTATION_OID);
   if (!ext) {
     return androidFail(
@@ -121,13 +143,8 @@ export async function verifyAndroidKeyAttestation(
   reasons.push('attestationChallenge matches the expected server nonce.');
 
   const securityLevel = attestedSecurityLevel(description);
-  if (!meetsMinimum(securityLevel, input.minSecurityLevel)) {
-    return androidFail(
-      reasons,
-      `Attested security level ${securityLevel} is below the required ` +
-        `${input.minSecurityLevel}.`,
-    );
-  }
+  const levelFailure = securityLevelRefusal(securityLevel, input.minSecurityLevel);
+  if (levelFailure) return androidFail(reasons, levelFailure);
   reasons.push(`Key is attested at security level ${securityLevel}.`);
 
   const hardware = description.hardwareEnforced;
@@ -135,9 +152,21 @@ export async function verifyAndroidKeyAttestation(
   if (originFailure) return androidFail(reasons, originFailure);
   reasons.push('Key origin is GENERATED — minted in the keystore, not imported.');
 
-  const bootFailure = verifiedBootRefusal(hardware);
-  if (bootFailure) return androidFail(reasons, bootFailure);
-  const rootOfTrust = hardware.rootOfTrust!;
+  const rootOfTrust = hardware.rootOfTrust;
+  if (!rootOfTrust) {
+    return androidFail(
+      reasons,
+      'The hardware-enforced authorization list carries no root of trust, so ' +
+        'the device boot state is unproven.',
+    );
+  }
+  if (rootOfTrust.verifiedBootState !== VERIFIED_BOOT_STATE_VERIFIED) {
+    return androidFail(
+      reasons,
+      'Device verified boot state is ' +
+        `${bootStateName(rootOfTrust.verifiedBootState)}, not Verified.`,
+    );
+  }
   reasons.push(
     'Device booted verified and is ' +
       (rootOfTrust.deviceLocked ? 'locked.' : 'NOT locked (bootloader unlocked).'),
@@ -166,14 +195,18 @@ export async function verifyAndroidKeyAttestation(
   }
   reasons.push('Attested public key matches the claimed JWK.');
 
-  reasons.push(
-    'Revocation was NOT checked: no revocation state was supplied (TODO(M2)).',
-  );
+  if (!input.revocation) {
+    reasons.push(
+      'Revocation was NOT checked: no revocation state was supplied. Pass ' +
+        'opts.revocation to have it consulted.',
+    );
+  }
 
   return {
     verified: true,
     attestationType: 'android-key',
     securityLevel,
+    deviceLocked: rootOfTrust.deviceLocked,
     publicJwk: attestedJwk,
     keyId: await jwkThumbprint(attestedJwk),
     reasons,
@@ -210,23 +243,6 @@ function originRefusal(hardware: AuthorizationList): string | null {
     return (
       `Key origin is ${originName(hardware.origin)}, not GENERATED: the key was ` +
       'imported into the keystore rather than minted inside it.'
-    );
-  }
-  return null;
-}
-
-function verifiedBootRefusal(hardware: AuthorizationList): string | null {
-  const rootOfTrust = hardware.rootOfTrust;
-  if (!rootOfTrust) {
-    return (
-      'The hardware-enforced authorization list carries no root of trust, so ' +
-      'the device boot state is unproven.'
-    );
-  }
-  if (rootOfTrust.verifiedBootState !== VERIFIED_BOOT_STATE_VERIFIED) {
-    return (
-      `Device verified boot state is ` +
-      `${bootStateName(rootOfTrust.verifiedBootState)}, not Verified.`
     );
   }
   return null;

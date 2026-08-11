@@ -8,6 +8,8 @@ export { defaultTrustStore, assertTrustConfigured } from './roots.js';
 export type {
   Jwk,
   NormalizedAttestation,
+  RevocationEntry,
+  RevocationStatus,
   SecurityLevel,
   TrustStore,
   VerifyOptions,
