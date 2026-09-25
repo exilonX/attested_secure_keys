@@ -271,6 +271,8 @@ PgIosAccessibility _accToPg(IosAccessibility a) => switch (a) {
     PgIosAccessibility.whenUnlockedThisDeviceOnly,
   IosAccessibility.afterFirstUnlockThisDeviceOnly =>
     PgIosAccessibility.afterFirstUnlockThisDeviceOnly,
+  IosAccessibility.whenPasscodeSetThisDeviceOnly =>
+    PgIosAccessibility.whenPasscodeSetThisDeviceOnly,
 };
 
 Jwk _jwkFromPg(PgJwk j) =>

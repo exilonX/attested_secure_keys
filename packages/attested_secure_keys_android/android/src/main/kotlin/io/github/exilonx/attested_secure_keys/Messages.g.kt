@@ -254,10 +254,14 @@ enum class PgAttestationEncoding(val raw: Int) {
   }
 }
 
-/** iOS keychain accessibility for the persisted (encrypted) key blob. */
+/**
+ * iOS keychain accessibility for the persisted (encrypted) key blob.
+ * Append new values at the end: the wire encodes the index.
+ */
 enum class PgIosAccessibility(val raw: Int) {
   WHEN_UNLOCKED_THIS_DEVICE_ONLY(0),
-  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY(1);
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY(1),
+  WHEN_PASSCODE_SET_THIS_DEVICE_ONLY(2);
 
   companion object {
     fun ofRaw(raw: Int): PgIosAccessibility? {

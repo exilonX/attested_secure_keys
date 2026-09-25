@@ -19,7 +19,51 @@ class _ThrowingApi extends AttestedSecureKeysApi {
   }
 }
 
+/// A Pigeon API stub that records the last `generateKey` request, so we can
+/// assert how the public options are mapped onto the wire DTO.
+class _CapturingApi extends AttestedSecureKeysApi {
+  PgGenerateKeyRequest? lastGenerate;
+
+  @override
+  Future<PgGeneratedKey> generateKey(PgGenerateKeyRequest request) async {
+    lastGenerate = request;
+    return PgGeneratedKey(
+      alias: request.alias,
+      publicJwk: PgJwk(kty: 'EC', crv: 'P-256', x: 'x', y: 'y', alg: 'ES256'),
+      requestedLevel: request.minSecurityLevel,
+      effectiveLevel: PgSecurityLevel.secureEnclave,
+      attestationType: PgAttestationType.none,
+      gatedByUserAuth: false,
+      userAuthType: PgUserAuthType.none,
+    );
+  }
+}
+
 void main() {
+  group('IosAccessibility maps to the matching wire value', () {
+    const cases = {
+      IosAccessibility.whenPasscodeSetThisDeviceOnly:
+          PgIosAccessibility.whenPasscodeSetThisDeviceOnly,
+      IosAccessibility.whenUnlockedThisDeviceOnly:
+          PgIosAccessibility.whenUnlockedThisDeviceOnly,
+      IosAccessibility.afterFirstUnlockThisDeviceOnly:
+          PgIosAccessibility.afterFirstUnlockThisDeviceOnly,
+    };
+    for (final MapEntry(key: accessibility, value: wire) in cases.entries) {
+      test(accessibility.name, () async {
+        final api = _CapturingApi();
+        await PigeonAttestedSecureKeys(api: api).generateKey(
+          alias: 'a',
+          minSecurityLevel: KeySecurityLevel.software,
+          userAuth: UserAuthPolicy.none,
+          android: AndroidKeyOptions.defaultOptions,
+          ios: IosKeyOptions(accessibility: accessibility),
+        );
+        expect(api.lastGenerate!.ios.accessibility, wire);
+      });
+    }
+  });
+
   Future<Object?> signWith(String code) async {
     final platform = PigeonAttestedSecureKeys(api: _ThrowingApi(code));
     try {

@@ -134,9 +134,11 @@ enum PgAttestationEncoding {
 }
 
 /// iOS keychain accessibility for the persisted (encrypted) key blob.
+/// Append new values at the end: the wire encodes the index.
 enum PgIosAccessibility {
   whenUnlockedThisDeviceOnly,
   afterFirstUnlockThisDeviceOnly,
+  whenPasscodeSetThisDeviceOnly,
 }
 
 /// EC P-256 public key in JWK form (RFC 7517). `x`/`y` are base64url, unpadded.

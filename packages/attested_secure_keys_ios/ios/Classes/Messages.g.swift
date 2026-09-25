@@ -221,9 +221,11 @@ enum PgAttestationEncoding: Int, CaseIterable {
 }
 
 /// iOS keychain accessibility for the persisted (encrypted) key blob.
+/// Append new values at the end: the wire encodes the index.
 enum PgIosAccessibility: Int, CaseIterable {
   case whenUnlockedThisDeviceOnly = 0
   case afterFirstUnlockThisDeviceOnly = 1
+  case whenPasscodeSetThisDeviceOnly = 2
 }
 
 /// EC P-256 public key in JWK form (RFC 7517). `x`/`y` are base64url, unpadded.

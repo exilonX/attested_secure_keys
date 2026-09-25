@@ -68,6 +68,15 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     completion: @escaping (Result<PgGeneratedKey, Error>) -> Void
   ) {
     do {
+      // Checked before deleteBlob so an existing key survives a request that
+      // cannot be honoured.
+      if request.ios.accessibility == .whenPasscodeSetThisDeviceOnly && !Self.isPasscodeSet() {
+        throw PigeonError(
+          code: Codes.keyOpFailed,
+          message: "whenPasscodeSetThisDeviceOnly requires a device passcode, but none is set.",
+          details: request.alias
+        )
+      }
       deleteBlob(alias: request.alias)
       let useSecureEnclave = SecureEnclave.isAvailable
       let effective: PgSecurityLevel = useSecureEnclave ? .secureEnclave : .software
@@ -87,24 +96,24 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       let publicX963: Data
       let blob: Data
       if useSecureEnclave {
-        let key: SecureEnclave.P256.Signing.PrivateKey
-        if enforcedGating {
-          guard let access = SecAccessControlCreateWithFlags(
-            nil,
-            accessibilityValue(request.ios.accessibility),
-            accessControlFlags(for: request.userAuth.type),
-            nil
-          ) else {
-            throw PigeonError(
-              code: Codes.keyOpFailed,
-              message: "Could not create access control.",
-              details: nil
-            )
-          }
-          key = try SecureEnclave.P256.Signing.PrivateKey(accessControl: access)
-        } else {
-          key = try SecureEnclave.P256.Signing.PrivateKey()
+        // Always pass an access control, even for an ungated key: CryptoKit's
+        // default is AfterFirstUnlockThisDeviceOnly, so without this the Secure
+        // Enclave would not enforce the caller's accessibility; only the blob would.
+        let flags: SecAccessControlCreateFlags =
+          enforcedGating ? accessControlFlags(for: request.userAuth.type) : [.privateKeyUsage]
+        guard let access = SecAccessControlCreateWithFlags(
+          nil,
+          accessibilityValue(request.ios.accessibility),
+          flags,
+          nil
+        ) else {
+          throw PigeonError(
+            code: Codes.keyOpFailed,
+            message: "Could not create access control.",
+            details: nil
+          )
         }
+        let key = try SecureEnclave.P256.Signing.PrivateKey(accessControl: access)
         publicX963 = key.publicKey.x963Representation
         blob = Data([Self.seTag]) + key.dataRepresentation
       } else {
@@ -128,7 +137,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
         attestation: .none,
         gatedByUserAuth: enforcedGating,
         userAuthType: enforcedGating ? request.userAuth.type : PgUserAuthType.none,
-        accessibility: request.ios.accessibility
+        accessible: accessibilityValue(request.ios.accessibility)
       )
 
       completion(.success(PgGeneratedKey(
@@ -454,7 +463,7 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     attestation: PgAttestationType,
     gatedByUserAuth: Bool,
     userAuthType: PgUserAuthType,
-    accessibility: PgIosAccessibility
+    accessible: CFString
   ) {
     let dict: [String: Any] = [
       "att": attestation.rawValue,
@@ -468,24 +477,42 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
       kSecAttrService as String: Self.metaService,
       kSecAttrAccount as String: alias,
       kSecValueData as String: data,
-      kSecAttrAccessible as String: accessibilityValue(accessibility),
+      kSecAttrAccessible as String: accessible,
     ]
     SecItemAdd(query as CFDictionary, nil)
   }
 
   /// Promote an existing alias's metadata to record an App Attest proof,
-  /// preserving its gating fields. No-op if the alias has no metadata.
-  private func markAttested(alias: String) {
-    guard let meta = loadMeta(alias: alias) else { return }
+  /// preserving its gating fields and the key's accessibility, so the metadata
+  /// is removed together with the blob (e.g. when a passcode is disabled).
+  /// No-op if the alias has no metadata or no blob.
+  func markAttested(alias: String) {
+    guard let meta = loadMeta(alias: alias), let accessible = blobAccessible(alias: alias)
+    else { return }
     storeMeta(
       alias: alias,
       attestation: .appleAppAttest,
       gatedByUserAuth: meta.gatedByUserAuth,
       userAuthType: meta.userAuthType,
-      // App Attest binds to the device; this device-only accessibility is the
-      // safe default for the marker and matches how keys are stored.
-      accessibility: .afterFirstUnlockThisDeviceOnly
+      accessible: accessible
     )
+  }
+
+  /// The accessibility the blob was actually stored with, read back from the
+  /// keychain rather than assumed.
+  private func blobAccessible(alias: String) -> CFString? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.service,
+      kSecAttrAccount as String: alias,
+      kSecReturnAttributes as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var result: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+      let attributes = result as? [String: Any]
+    else { return nil }
+    return (attributes[kSecAttrAccessible as String] as? String).map { $0 as CFString }
   }
 
   private func loadMeta(alias: String) -> KeyMeta? {
@@ -555,13 +582,26 @@ public class AttestedSecureKeysPlugin: NSObject, FlutterPlugin, AttestedSecureKe
     SecItemDelete(query as CFDictionary)
   }
 
-  private func accessibilityValue(_ accessibility: PgIosAccessibility) -> CFString {
+  func accessibilityValue(_ accessibility: PgIosAccessibility) -> CFString {
     switch accessibility {
     case .whenUnlockedThisDeviceOnly:
       return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
     case .afterFirstUnlockThisDeviceOnly:
       return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    case .whenPasscodeSetThisDeviceOnly:
+      return kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly
     }
+  }
+
+  /// Whether the device has a passcode. `.deviceOwnerAuthentication` is
+  /// evaluable whenever a passcode exists, with or without biometry. Any other
+  /// failure is not treated as "no passcode": the keychain still refuses the
+  /// store in that case, so this check only exists to give a clear error.
+  private static func isPasscodeSet() -> Bool {
+    var error: NSError?
+    if LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) { return true }
+    guard let ns = error, ns.domain == LAError.errorDomain else { return true }
+    return LAError.Code(rawValue: ns.code) != .passcodeNotSet
   }
 
   /// Maps the cross-platform user-auth policy to Secure Enclave access-control

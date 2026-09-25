@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Support `IosAccessibility.whenPasscodeSetThisDeviceOnly`
+  (`kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly`). `generateKey` fails
+  with `key_operation_failed` when no device passcode is set, before touching
+  any existing key under the alias.
+- Secure Enclave keys without user-auth gating now carry the requested
+  accessibility on the key itself, not just on its keychain blob (CryptoKit's
+  default was `AfterFirstUnlockThisDeviceOnly`).
+- `attest()` no longer resets a key's metadata item to
+  `AfterFirstUnlockThisDeviceOnly`; it keeps the accessibility the key was
+  stored with.
+
 ## 0.1.1
 
 - No code or API changes. Version bump only, to keep the four federated

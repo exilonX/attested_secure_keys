@@ -66,9 +66,11 @@ enum PgUserAuthType {
 enum PgAttestationEncoding { x5cDer, cbor, jwt }
 
 /// iOS keychain accessibility for the persisted (encrypted) key blob.
+/// Append new values at the end: the wire encodes the index.
 enum PgIosAccessibility {
   whenUnlockedThisDeviceOnly,
   afterFirstUnlockThisDeviceOnly,
+  whenPasscodeSetThisDeviceOnly,
 }
 
 // ---------------------------------------------------------------------------

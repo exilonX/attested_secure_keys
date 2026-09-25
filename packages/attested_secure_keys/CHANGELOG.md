@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `IosKeyOptions(accessibility: IosAccessibility.whenPasscodeSetThisDeviceOnly)`:
+  keep the key only while the device has a passcode; iOS deletes it if the
+  passcode is removed (#83).
+
 ## 0.1.1
 
 - Metadata only, no code or API changes. `homepage` now points at the design

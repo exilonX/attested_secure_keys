@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `IosAccessibility.whenPasscodeSetThisDeviceOnly` (and the matching
+  `PgIosAccessibility` wire value, appended so existing indices are unchanged).
+  Code with an exhaustive `switch` over `IosAccessibility` needs a new case.
+
 ## 0.1.1
 
 - No code or API changes. Version bump only, to keep the four federated

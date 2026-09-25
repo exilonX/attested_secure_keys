@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Regenerated Pigeon bindings for the new iOS-only
+  `whenPasscodeSetThisDeviceOnly` accessibility value. No behaviour change on
+  Android.
+
 ## 0.1.1
 
 - No code or API changes. Version bump only, to keep the four federated
