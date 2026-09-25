@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Flutter **federated plugin** for **hardware-backed, attestable EC P-256 keys**: generate non-exportable ES256 signing keys inside Android Keystore (StrongBox/TEE) or the iOS Secure Enclave, sign with raw `R‖S` output, and emit a server-verifiable **key attestation** (Android Keystore attestation / Apple App Attest). Modeled on `flutter_secure_storage`'s ergonomics — but for *keys*, not data.
 
-The repo is a **pub workspace** (`resolution: workspace`). Note the directory-name typo: `atested_secure_storage` (one `t`), while the package is `attested_secure_keys` (two `t`s).
+The repo is a **pub workspace** (`resolution: workspace`); the root `pubspec.yaml` (`_attested_secure_keys_workspace`, unpublished) lists the four Dart packages plus the example.
 
 ## Commands
 

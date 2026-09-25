@@ -34,8 +34,7 @@ backend. That goal is **achieved and verified on Android hardware.**
 
 ## Layout
 
-A **pub workspace** (`resolution: workspace`) rooted here (note dir-name typo
-"atested"). Run `flutter pub get` at the **repo root** to resolve everything.
+A **pub workspace** (`resolution: workspace`) rooted here. Run `flutter pub get` at the **repo root** to resolve everything.
 Federated plugin under `packages/`:
 
 - `attested_secure_keys` — app-facing facade (`AttestedSecureKeys`) + example app.
