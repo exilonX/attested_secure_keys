@@ -47,8 +47,13 @@ against your nonce, the attested `securityLevel` / `origin` / verified-boot stat
 and the key binding are read from the **hardware-enforced** authorization list
 and enforced, and revocation is consulted against the state you inject. A
 genuine bundle returns `verified: true`; every failure has its own reason. The
-iOS path is unchanged pending its own fixtures. **Not yet audited for production
-trust decisions.**
+**iOS path is proven against a genuine capture** (iPhone 13, development
+environment): the attestation verifies and returns the App Attest key to
+persist, the assertion verifies against it, and the environment marker and
+`lastSignCount` are enforced by this package rather than left to the checker
+library. `lastSignCount` is **required** for assertions — pass 0 for the first
+one. No production-environment capture has been verified yet. **Not yet audited
+for production trust decisions.**
 
 **Revocation is injected, never fetched.** The verifier makes no outbound
 request, so it consults only what you pass as `opts.revocation`. Omitting it

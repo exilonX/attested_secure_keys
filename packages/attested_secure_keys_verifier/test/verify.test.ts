@@ -40,6 +40,7 @@ function assertionRaw(): string {
 function attestationRaw(): string {
   const authData = Buffer.alloc(87);
   authData[32] = 0x40; // AT flag: attested credential data present
+  authData.write('appattestdevelop', 37); // AAGUID: the development environment
   authData[53] = 0x00; // credIdLen high byte
   authData[54] = 0x20; // credIdLen low byte = 32
   const cbor = cborEncode({

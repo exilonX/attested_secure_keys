@@ -137,6 +137,20 @@ Consequence to keep in mind: the Apple anchor rotates on that library's release
 cadence, not on this repository's. If you need to pin it yourself, that is a
 reason to take over the chain step rather than to fill in the field.
 
+**Delegating is not trusting blindly.** Two App Attest properties are enforced in
+`src/ios.ts` itself, because the library gets them wrong or leaves them to the
+caller:
+
+- **Environment.** The library compares only the first 9 bytes of the authData
+  AAGUID in production mode, and `appattestdevelop` starts with `appattest` — so
+  it accepts a development attestation as production. The verifier compares all
+  16 bytes (`appattestdevelop`, or `appattest` followed by seven zero bytes) and
+  refuses a mismatch, naming the environment. A development build can be signed
+  by anyone on the team, which is why production must refuse it.
+- **Replay.** An assertion's `signCount` is its only replay defence, so
+  `lastSignCount` is required: an assertion presented without it is refused
+  rather than accepted with the comparison skipped.
+
 ## 5. The platform asymmetry — an invariant, not an accident
 
 **Android binds the server nonce at key generation.** The challenge is sealed
@@ -203,7 +217,11 @@ trustworthy.
 | same, `verificationTime` moved | injected time | 9 | expiry is enforced, not assumed |
 | synthetic `KeyDescription`s | generated | 9 | imported origin, unverified boot, software level, and software-enforced-only claims are each refused |
 | the published ECDSA P-384 root | real certificate | 9 | the RKP anchor is accepted |
-| **iOS App Attest bundle** | **not captured yet** | **10** | **pending [#77](https://github.com/exilonX/attested_secure_keys/issues/77)** |
+| `ios-appattest-genuine.json` | captured, iPhone 13, iOS 26.3.1, development environment | 10 | chain anchors at the Apple App Attest Root; nonce binds the Secure Enclave key thumbprint and the server nonce; RP-ID hash matches the appId; level `secureEnclave`; the App Attest key is returned for registration — `the genuine App Attest attestation verifies at the Secure Enclave level` |
+| same, `expectedNonce` / `appId` changed | derived negatives | 10 | a substituted nonce and another app's attestation are refused, each with its own reason |
+| same, production verifier / AAGUID rewritten | derived negatives | 10 | a development attestation is refused in production, and relabelling it production breaks the nonce binding |
+| same, clock pinned past `notAfter` | pinned time | 10 | expiry is enforced by the library, not assumed |
+| `ios-appassert-genuine.json` | captured, same install, `signCount` 1 | 10 | an assertion verifies against the registered App Attest key; a non-advancing counter, a missing counter, a missing registration and a different Secure Enclave key are each refused — `a genuine assertion verifies against the key registered by the attestation` |
 
 Fixture inventory and provenance:
 [test/fixtures/README.md](../packages/attested_secure_keys_verifier/test/fixtures/README.md).
@@ -211,17 +229,12 @@ Fixture inventory and provenance:
 **Row 9 — dischargeable now.** Cite the tests named above; all are hermetic and
 run in CI on every pull request.
 
-**Row 10 — not dischargeable yet.** The App Attest path delegates real
-cryptography and returns a positive verdict on success, but nothing has ever
-observed it doing so: every committed iOS test feeds it a synthesised object and
-asserts refusal (`apple-appattest runs real verification on a well-formed object
-(bogus chain -> false)`, `apple-appassert with a registered key runs
-verification (bad sig -> false)`). A verifier that has only been seen rejecting
-garbage is not evidence that it accepts truth. Row 10 needs
-[#77](https://github.com/exilonX/attested_secure_keys/issues/77) (capture),
-[#80](https://github.com/exilonX/attested_secure_keys/issues/80) (adversarial
-fixtures) and [#81](https://github.com/exilonX/attested_secure_keys/issues/81)
-(assertion replay).
+**Row 10 — dischargeable now, for the development environment.** Cite the tests
+in `ios-app-attest.test.ts` named above; all are hermetic and run in CI. The
+captured bundles are development-environment only, so the production path is
+proven by refusal (a development bundle is refused in production), not by a
+production acceptance. Certificates in the attestation are judged at a pinned
+clock — see §8.
 
 ## 8. What this does not prove
 
@@ -244,12 +257,16 @@ Stated here rather than left to be discovered.
   the option is for, and it is why the option is public.
 - **iOS has no injectable verification time.** `appattest-checker-node` verifies
   the App Attest certificates against `new Date()` with no way to supply one
-  (its source carries a `TODO: date also available as input`). Whatever window
-  Apple issues those certificates with, a committed genuine iOS fixture will
-  eventually stop verifying and cannot be pinned to a date the way the Android
-  one is. Record the credCert's `notBefore`/`notAfter` when capturing under
-  [#77](https://github.com/exilonX/attested_secure_keys/issues/77) — it decides
-  whether the iOS positive test can be a permanent fixture at all, or whether
-  the chain step has to be taken in-house.
+  (its source carries a `TODO: date also available as input`), so
+  `verificationTime` is Android-only. Apple issued the captured credCert for
+  **three days** (2026-09-27 → 2026-09-30). The suite therefore pins the test
+  clock (`mock.timers`, `Date` only) inside that window rather than taking the
+  chain step in-house, and one test pins it past `notAfter` to prove the pin
+  reaches the library. Production is unaffected: a registration is judged when
+  it arrives.
+- **Tampered App Attest authData and a substituted nonce share one reason.** The
+  device commits to authData only through the nonce hash in the credCert, so
+  the two are the same mismatch and cannot be told apart.
+- **No production-environment App Attest capture exists.** See row 10.
 - **This is not a certified WSCD** and makes no Level-of-Assurance claim. See
   [SECURITY.md](../SECURITY.md).

@@ -83,6 +83,9 @@ export interface VerifyOptions {
    * test the expiry rejection path against a fixture whose chain is currently
    * valid. The Android path refuses a chain holding a certificate outside its
    * validity window at this instant, so this option decides that verdict.
+   *
+   * **Android only.** The App Attest path always judges certificates at the
+   * current time: its checker library takes no verification time.
    */
   verificationTime?: Date;
   /**
@@ -98,7 +101,12 @@ export interface VerifyOptions {
    * no certificate chain, so it can only be checked against this registration.
    */
   registeredAppAttestKeyPem?: string;
-  /** Last accepted App Attest `signCount` (assertions must strictly increase it). */
+  /**
+   * App Attest **assertion** verification only: the last `signCount` you
+   * accepted for this device (assertions must strictly increase it). Required —
+   * an assertion is refused without it, because the counter is its only replay
+   * defence. Pass 0 for the first assertion after attestation.
+   */
   lastSignCount?: number;
 }
 

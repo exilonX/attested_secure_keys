@@ -23,8 +23,8 @@ backend. That goal is **achieved and verified on Android hardware.**
   "not building this" decision was reversed). Real root-pinning by public key,
   hardware-enforced key properties, and revocation against injected state; the
   captured bundle verifies in CI. See `doc/TRUST_MODEL.md`. The iOS path is
-  pending a device capture (#77). `verify-local.mjs` remains a separate dev-only
-  self-check, not the library.
+  proven against a genuine iPhone 13 capture (development environment).
+  `verify-local.mjs` remains a separate dev-only self-check, not the library.
 
 **Out of scope (by explicit decision):**
 - The **OID4VCI `keyattestation+jwt`** wrapper.
@@ -43,7 +43,7 @@ Federated plugin under `packages/`:
 - `attested_secure_keys_android` — Kotlin (Keystore, first-party only).
 - `attested_secure_keys_ios` — Swift (Secure Enclave / App Attest).
 - `attested_secure_keys_verifier` — Node/TS server-side verifier. **Android path
-  complete** (`doc/TRUST_MODEL.md`); iOS pending #77. Not part of the pub
+  complete** (`doc/TRUST_MODEL.md`); iOS proven on a development capture. Not part of the pub
   workspace. `verify-local.mjs` inside it is a separate dev-only self-check that
   shells out to `openssl` — reference for *which* checks to run, not how.
 
@@ -112,9 +112,12 @@ anchored to the pinned Google roots (by public key, not fingerprint), the
 attested `securityLevel` / `origin` / verified-boot state and the key binding are
 read from the *hardware-enforced* authorization list and enforced, and revocation
 is consulted against injected state. The captured TEE bundle returns
-`verified: true` in CI. The **iOS path is unchanged**: it delegates to
-`appattest-checker-node` and has only ever been observed *rejecting* synthesised
-input — a genuine capture (#77) is what makes acceptance provable. Read
+`verified: true` in CI. The **iOS path** delegates to `appattest-checker-node`,
+and a genuine iPhone 13 attestation + assertion (development environment,
+captured 2026-09-27) verify in CI with the test clock pinned inside Apple's
+three-day certificate window. The verifier itself enforces the full AAGUID
+environment marker (the library checks only 9 bytes) and requires
+`lastSignCount`. No production-environment capture yet. Read
 `doc/TRUST_MODEL.md` before relying on a verdict.
 
 ### Tests in place

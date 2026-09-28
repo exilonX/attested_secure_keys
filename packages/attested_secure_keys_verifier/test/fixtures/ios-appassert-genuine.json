@@ -1,0 +1,17 @@
+{
+  "keyId": "4YvFXXgCGZrGroFScALXjk0Y_eM0gnDv4SdoC97IaPE",
+  "publicJwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "DRfbqEoc8haZadhRn15PlMsNRtSXRD3JOwCYat2106M",
+    "y": "LF5-6jgi4_fXrRcjmoOlk7zS-zX2htcCUOJ-fVr7_eQ",
+    "alg": "ES256"
+  },
+  "attestation": {
+    "type": "apple-appassert",
+    "encoding": "cbor",
+    "x5c": [],
+    "raw": "omlzaWduYXR1cmVYSDBGAiEAz7kxgsOHmD8y0sXRAiOjyNUTblg47j42XP7lkdjlXZ0CIQCxFzynXKSBKh8UMVZ6WeItNIWFTsimBcWMmHZJp4joNXFhdXRoZW50aWNhdG9yRGF0YVglrB0UUoejD6wiCnOK1FL3ztZZSaIQif6L-7QucjObxb9AAAAAAQ",
+    "nonce": "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dw"
+  }
+}

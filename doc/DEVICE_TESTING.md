@@ -63,7 +63,8 @@ does) or biometric-gated signing throws.
 
 - Secure Enclave needs a real device (iOS 13+); the **Simulator** reports
   `software` / `none`.
-- **App Attest** needs iOS 14+, a real Apple **Team ID**, the App Attest
+- **App Attest** needs iOS 14+, a **paid** Apple Developer Program team (Xcode
+  refuses to provision App Attest for a free personal team), the App Attest
   capability/entitlement
   (`com.apple.developer.devicecheck.appattest-environment` = `development`),
   and network. Add it in Xcode → Signing & Capabilities → **App Attest**.
@@ -89,14 +90,16 @@ real device and a signing identity. Follow this exactly — a bundle whose nonce
 claimed key or environment was not recorded **cannot be verified by anyone
 later**, because the expected challenge is reconstructed from them.
 
-**The one-time project fix.** The example app carries `DEVELOPMENT_TEAM =
-N9KF4G6HY7` and bundle id `io.github.exilonx.attestedSecureKeysExample`, but
-**no entitlements file is committed**, so a fresh clone cannot attest at all.
-In Xcode: open `packages/attested_secure_keys/example/ios/Runner.xcworkspace` →
-*Runner* target → *Signing & Capabilities* → **+ Capability** → **App Attest**.
-That generates `Runner.entitlements` with
-`com.apple.developer.devicecheck.appattest-environment = development`.
-**Commit that file** so nobody repeats this step.
+**The one-time project fix — done.** The example app carries `DEVELOPMENT_TEAM =
+38D8KPCAZ9` (a paid team), bundle id `io.github.exilonx.attestedSecureKeysExample`,
+and a committed `Runner.entitlements` with
+`com.apple.developer.devicecheck.appattest-environment = development`, wired
+into all three Runner build configurations via `CODE_SIGN_ENTITLEMENTS`. A
+member of that team can attest without touching Xcode. Anyone else must pick
+their own **paid** team in Xcode → Signing & Capabilities: with a free personal
+team the build fails ("Personal development teams … do not support the App
+Attest capability"), and removing the entitlement is the only way to build. A
+different team changes the appId recorded with a fixture — see the table below.
 
 **Order matters — attestation first, then assertion.** The plugin attests *once
 per install* and caches the App Attest key id in the keychain; every later
@@ -122,18 +125,14 @@ per install* and caches the App Attest key id in the keychain; every later
 | capture date | pairs with the certificate window below |
 | the server nonce | the demo binds a fixed 32-byte value, `(i * 7 + 3) & 0xff` for `i` in 0..31 — record it explicitly rather than relying on the constant staying put |
 | the claimed `publicJwk` | `Copy JSON` already includes it; the challenge is `clientData = utf8(RFC 7638 thumbprint) ‖ nonce` |
-| the appId | `N9KF4G6HY7.io.github.exilonx.attestedSecureKeysExample` unless you re-signed |
+| the appId | `38D8KPCAZ9.io.github.exilonx.attestedSecureKeysExample` unless you re-signed |
 | the credCert `notBefore` / `notAfter` | see the warning below |
 
-> ⚠️ **Check the certificate window before assuming the fixture is permanent.**
+> ⚠️ **The certificate window is short — three days for the 2026-09-27 capture.**
 > `appattest-checker-node` verifies the App Attest certificates against
-> `new Date()` and offers **no way to inject a date** — unlike the Android path,
-> which takes `verificationTime`. Whatever window Apple issues those
-> certificates with, the fixture stops verifying when it closes, and the test
-> cannot be pinned to a fixed instant. If the window is short, the chain step has
-> to be taken in-house (the machinery already exists in
-> `attested_secure_keys_verifier/src/chain.ts`). Record the dates so this is a
-> decision rather than a surprise.
+> `new Date()` and offers no way to inject a date, so the verifier suite pins
+> the test clock inside the recorded window (see the fixtures README). A new
+> capture needs its own window recorded and the pinned instant updated.
 
 Unlike the Android fixture, the iOS one **does** carry a real bound nonce — App
 Attest binds at `attest()` — so it genuinely exercises nonce binding, not just
@@ -203,7 +202,7 @@ Reference tooling: `@peculiar/x509` + `pkijs`/`asn1js`, or end-to-end via
 | 7 | Non-exportable: no API returns private bytes; delete → sign fails | A9/B7 | ☐ |
 | 8 | `attest(nonceA)` vs `attest(nonceB)` → nonce echoed; replay detectable server-side | C | ☐ |
 | 9 | Android chain validates to a published Google root; extension parses; level ∈ {TEE,StrongBox}; `origin=GENERATED`; `verifiedBoot=Verified`; revocation OK | C-Android | ☑ *citable* — see [TRUST_MODEL.md §7](TRUST_MODEL.md); the captured TEE bundle verifies in CI, and each property has a named refusal test |
-| 10 | iOS App Attest validates to Apple root; nonce binding; RP-ID hash; signCount | C-iOS | ☐ blocked on a device capture (#77), then #80/#81 |
+| 10 | iOS App Attest validates to Apple root; nonce binding; RP-ID hash; signCount | C-iOS | ☑ *citable, development environment* — see [TRUST_MODEL.md §7](TRUST_MODEL.md); the captured iPhone 13 attestation and assertion verify in CI, and each property has a named refusal test. No production-environment capture yet |
 | 11 | Emitted OID4VCI `keyattestation+jwt` validates (M2) | server | ☐ |
 | 12 | Software key → server denies HIGH; library reported `software`/`none` | A/B + C | ☐ |
 

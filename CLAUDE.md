@@ -66,7 +66,7 @@ App developers depend only on **`attested_secure_keys`**, which endorses the pla
 | `attested_secure_keys_platform_interface` | The contract, the normalized public model, and the **Pigeon schema** (single source of truth). Default impl `PigeonAttestedSecureKeys` talks to the native host APIs. |
 | `attested_secure_keys_android` | Kotlin — Keystore/StrongBox + `androidx.biometric`. First-party only. |
 | `attested_secure_keys_ios` | Swift — Secure Enclave + App Attest. **Device-verified on a physical iPhone**; CI only compiles it (native code is never *run* in CI). |
-| `attested_secure_keys_verifier` | Node/TS server-side verifier. **NOT part of the pub workspace.** Android path complete (`doc/TRUST_MODEL.md`); iOS pending #77 — see scope note below. |
+| `attested_secure_keys_verifier` | Node/TS server-side verifier. **NOT part of the pub workspace.** Android path complete (`doc/TRUST_MODEL.md`); iOS proven on a development-environment capture — see scope note below. |
 
 ### The Pigeon boundary (the spine of this repo)
 
@@ -93,7 +93,7 @@ New platform packages should **`extend`** `AttestedSecureKeysPlatform` (the `plu
 
 - **In scope:** the plugin only — generate/store/use non-exportable, biometric-gated keys with hardware attestation. Achieved and hardware-verified on both platforms: Android at TEE tier (Xiaomi Redmi, API 30), iOS on a physical iPhone (Secure Enclave + App Attest).
 - **M2 verifier, Android — built** (was previously scoped out; that decision was reversed). `attested_secure_keys_verifier` makes a real trust decision: both Google roots pinned **by public key**, chain anchoring + validity + CA constraints, the attested `securityLevel` / `origin` / verified-boot state and key binding read from the **hardware-enforced** authorization list, and revocation consulted against caller-injected state. The captured TEE bundle returns `verified: true` in CI. Read `doc/TRUST_MODEL.md` before changing any of it. `verify-local.mjs` is a *separate* dev-only self-check that pins by fingerprint — do not copy that approach into the library.
-- **M2 verifier, iOS — pending, not out of scope.** The App Attest path delegates to `appattest-checker-node` and has only ever been observed *rejecting* synthesised input. Proving acceptance needs a bundle captured on real hardware (#77, human-gated), then #80/#81.
+- **M2 verifier, iOS — built, development environment only.** The App Attest path delegates to `appattest-checker-node`; a genuine iPhone 13 attestation + assertion verify in CI (`test/ios-app-attest.test.ts`). The library judges certificates at `new Date()` and Apple issues them for three days, so tests pin the clock (`pinClock`) rather than the verifier. `src/ios.ts` enforces two things itself: the full 16-byte AAGUID environment marker (the library compares 9 bytes, so it accepts development as production) and a **required** `lastSignCount`. No production-environment capture exists. App Attest needs a **paid** Apple team — the example is signed with `38D8KPCAZ9`.
 - **Out of scope (M2):** the OID4VCI `keyattestation+jwt` wrapper.
 - **Out of scope (M3):** eIDAS/certification hardening, verified-publisher pub.dev release. This is **not** a certified eIDAS WSCD and makes no Level-of-Assurance claim.
 

@@ -23,6 +23,18 @@ import type { Jwk, VerifyResult } from './types.js';
  */
 const IOS_SECURITY_LEVEL = APP_ATTEST_SECURITY_LEVEL;
 
+/**
+ * The 16-byte AAGUID App Attest writes into authData, per environment. The
+ * checker library compares only the first 9 bytes in production, which
+ * `appattestdevelop` also starts with — so it would accept a development
+ * attestation as production. We compare all 16 bytes ourselves.
+ */
+const AAGUID_OFFSET = 37;
+const AAGUID = {
+  development: Buffer.from('appattestdevelop'),
+  production: Buffer.concat([Buffer.from('appattest'), Buffer.alloc(7)]),
+};
+
 export interface IosVerifyInput {
   /** base64url App Attest CBOR object. */
   cborBase64Url: string;
@@ -44,7 +56,10 @@ export interface IosAssertInput {
   appId?: string;
   /** PEM public key captured from the prior `apple-appattest` registration. */
   registeredAppAttestKeyPem?: string;
-  /** Last accepted `signCount`; the assertion must strictly exceed it. */
+  /**
+   * Last accepted `signCount`; the assertion must strictly exceed it. Required:
+   * an assertion is refused without it. 0 for the first assertion.
+   */
   lastSignCount?: number;
 }
 
@@ -95,6 +110,10 @@ export async function verifyAppleAppAttest(
   const keyId = deriveKeyId(obj.authData);
   if (!keyId) {
     return iosFail('Could not extract the credential id from authData.');
+  }
+  const environmentError = checkEnvironment(obj.authData, input.developmentEnv);
+  if (environmentError) {
+    return iosFail(environmentError);
   }
 
   const appInfo: AppInfo = {
@@ -163,6 +182,14 @@ export async function verifyAppleAppAssert(
         'against the public key captured at attestation time.',
     );
   }
+  // The counter is the only replay defence an assertion has, so its absence
+  // must refuse rather than skip the check.
+  if (input.lastSignCount === undefined) {
+    return assertFail(
+      'No lastSignCount supplied; without the last accepted counter a replayed ' +
+        'assertion cannot be detected. Pass 0 for the first assertion after attestation.',
+    );
+  }
 
   const clientDataHash = createHash('sha256')
     .update(await clientData(input.expectedJwk, input.expectedNonce))
@@ -183,7 +210,7 @@ export async function verifyAppleAppAssert(
   }
 
   // Step 6: the device's signCount must strictly increase across assertions.
-  if (input.lastSignCount !== undefined && result.signCount <= input.lastSignCount) {
+  if (result.signCount <= input.lastSignCount) {
     return assertFail(
       `Assertion signCount ${result.signCount} did not increase past the last ` +
         `accepted value ${input.lastSignCount} (possible replay).`,
@@ -220,6 +247,22 @@ function deriveKeyId(authData: Uint8Array): string | null {
   const credIdLen = (authData[53] << 8) | authData[54];
   if (authData.length < 55 + credIdLen) return null;
   return Buffer.from(authData.slice(55, 55 + credIdLen)).toString('base64');
+}
+
+/** A reason if authData's AAGUID is not the requested environment's, else null. */
+function checkEnvironment(authData: Uint8Array, developmentEnv: boolean): string | null {
+  const expected = developmentEnv ? 'development' : 'production';
+  const actual = Buffer.from(authData.subarray(AAGUID_OFFSET, AAGUID_OFFSET + 16));
+  if (actual.equals(AAGUID[expected])) return null;
+  const found = actual.equals(AAGUID.development)
+    ? 'development'
+    : actual.equals(AAGUID.production)
+      ? 'production'
+      : 'unknown';
+  return (
+    `App Attest environment mismatch: the attestation's AAGUID marks the ${found} ` +
+    `environment, but the ${expected} environment was required (appAttestDevelopmentEnv).`
+  );
 }
 
 function iosFail(reason: string): VerifyResult {
