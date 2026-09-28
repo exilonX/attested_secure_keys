@@ -2,3 +2,10 @@ include: package:flutter_lints/flutter.yaml
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+# Mirrors the exclude list `flutter pub get` would otherwise add (and dirty the
+# tree with) on newer Flutter; keep it so `pub publish --dry-run` stays clean.
+analyzer:
+  exclude:
+    - build/**
+    - ios/**
