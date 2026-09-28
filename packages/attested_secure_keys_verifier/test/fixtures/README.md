@@ -159,6 +159,7 @@ public key the attestation test returns — the round trip a relying party runs.
 | Substituted nonce | one bit of `expectedNonce` flipped | nonce binding (`fail_nonce_mismatch`) |
 | Another app's attestation | `appId` with a different team id | RP-ID hash (`fail_rpId_mismatch`) |
 | Development presented to production | `appAttestDevelopmentEnv: false` | environment (the verifier's own full-AAGUID check) |
+| No environment named | `appAttestDevelopmentEnv` omitted | an assumed environment |
 | Relabelled as production | authData AAGUID rewritten to `appattest` + 7 zero bytes | tampered authData (`fail_nonce_mismatch`) |
 | Expired | clock pinned past `notAfter` | validity window (`fail_credCert_verify_failure`) |
 | Replayed assertion | `lastSignCount: 1` | replay |

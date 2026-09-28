@@ -43,8 +43,11 @@ export interface IosVerifyInput {
   expectedJwk?: Jwk;
   /** "<TeamID>.<BundleID>". */
   appId?: string;
-  /** Sandbox (development) vs production App Attest environment. */
-  developmentEnv: boolean;
+  /**
+   * Sandbox (development) vs production App Attest environment. Required: an
+   * attestation is refused without it rather than assumed to be development.
+   */
+  developmentEnv?: boolean;
 }
 
 export interface IosAssertInput {
@@ -105,6 +108,14 @@ export async function verifyAppleAppAttest(
   }
   if (!input.appId) {
     return iosFail('appId ("<TeamID>.<BundleID>") is required to verify the RP-ID hash.');
+  }
+  // Assuming an environment would let a production server that forgot the flag
+  // accept development attestations, which anyone on the team can produce.
+  if (input.developmentEnv === undefined) {
+    return iosFail(
+      'appAttestDevelopmentEnv is required: pass false in production, true only ' +
+        'for a server that accepts development builds.',
+    );
   }
   // The App Attest key id is base64(credId), and credId is embedded in authData.
   const keyId = deriveKeyId(obj.authData);

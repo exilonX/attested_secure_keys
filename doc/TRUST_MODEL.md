@@ -150,6 +150,9 @@ caller:
 - **Replay.** An assertion's `signCount` is its only replay defence, so
   `lastSignCount` is required: an assertion presented without it is refused
   rather than accepted with the comparison skipped.
+- **No assumed environment.** `appAttestDevelopmentEnv` is required for an
+  attestation. Defaulting it to development would let a production server that
+  forgot the flag accept development attestations, undoing the check above.
 
 ## 5. The platform asymmetry — an invariant, not an accident
 

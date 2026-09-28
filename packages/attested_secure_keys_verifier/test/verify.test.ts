@@ -101,7 +101,7 @@ test('apple-appattest without expectedJwk fails clearly', async () => {
 test('apple-appattest runs real verification on a well-formed object (bogus chain -> false)', async () => {
   const result = await verifyAttestation(
     { type: 'apple-appattest', encoding: 'cbor', x5c: [], nonce: '', raw: attestationRaw() },
-    { expectedNonce: new Uint8Array(), expectedJwk: SE_JWK, appId: APP_ID },
+    { expectedNonce: new Uint8Array(), expectedJwk: SE_JWK, appId: APP_ID, appAttestDevelopmentEnv: true },
   );
   // Decoded, derived the keyId, and invoked the checker (no throw); the planted
   // cert chain cannot verify against the Apple root.

@@ -51,7 +51,7 @@ export async function verifyAttestation(
         expectedNonce: opts.expectedNonce,
         expectedJwk: opts.expectedJwk,
         appId: opts.appId,
-        developmentEnv: opts.appAttestDevelopmentEnv ?? true,
+        developmentEnv: opts.appAttestDevelopmentEnv,
       });
 
     case 'apple-appassert':

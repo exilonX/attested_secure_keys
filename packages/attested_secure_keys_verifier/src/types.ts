@@ -89,9 +89,10 @@ export interface VerifyOptions {
    */
   verificationTime?: Date;
   /**
-   * iOS App Attest environment for attestation: `true` = sandbox/development
-   * (default), `false` = production. Must match the build's
-   * `com.apple.developer.devicecheck.appattest-environment` entitlement.
+   * iOS App Attest environment for attestation: `true` = sandbox/development,
+   * `false` = production. **Required** for `apple-appattest` — an attestation
+   * is refused without it rather than assumed to be development. Must match the
+   * build's `com.apple.developer.devicecheck.appattest-environment` entitlement.
    */
   appAttestDevelopmentEnv?: boolean;
   /**

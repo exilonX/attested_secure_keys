@@ -51,8 +51,9 @@ genuine bundle returns `verified: true`; every failure has its own reason. The
 environment): the attestation verifies and returns the App Attest key to
 persist, the assertion verifies against it, and the environment marker and
 `lastSignCount` are enforced by this package rather than left to the checker
-library. `lastSignCount` is **required** for assertions — pass 0 for the first
-one. No production-environment capture has been verified yet. **Not yet audited
+library. `appAttestDevelopmentEnv` is **required** for attestations (`false` in
+production), and `lastSignCount` is **required** for assertions — pass 0 for the
+first one. No production-environment capture has been verified yet. **Not yet audited
 for production trust decisions.**
 
 **Revocation is injected, never fetched.** The verifier makes no outbound

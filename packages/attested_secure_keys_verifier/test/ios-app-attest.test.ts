@@ -104,6 +104,15 @@ test('a development attestation is refused by a production verifier, naming the 
   assert.match(said(result), /development/);
 });
 
+test('an attestation verified without naming the environment is refused, not assumed', async (t) => {
+  pinClock(t);
+
+  const result = await verifyIosAttestation(undefined, { appAttestDevelopmentEnv: undefined });
+
+  assert.equal(result.verified, false);
+  assert.match(said(result), /appAttestDevelopmentEnv/);
+});
+
 test('a development attestation relabelled as production is refused', async (t) => {
   // The environment marker lives in authData, which the device commits to only
   // through the nonce hash — so the forgery surfaces as a binding failure.
