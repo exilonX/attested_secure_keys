@@ -38,7 +38,7 @@
   "dependencies": {
     "@peculiar/x509": "^1.14.3",
     "appattest-checker-node": "^1.0.3",
-    "asn1js": "^3.0.10",
+    "asn1js": "^4.0.0",
     "cbor-x": "^1.6.6",
     "jose": "^6.2.12"
   },
