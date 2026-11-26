@@ -59,13 +59,25 @@ jobs:
         run: flutter build apk --debug
 
   build-ios:
-    name: Build example (iOS)
+    name: Build example (iOS, ${{ matrix.integration }})
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The plugin ships both a Package.swift and a podspec; build through each.
+        integration: [swiftpm, cocoapods]
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      - name: Select native integration
+        run: |
+          if [ "${{ matrix.integration }}" = swiftpm ]; then
+            flutter config --enable-swift-package-manager
+          else
+            flutter config --no-enable-swift-package-manager
+          fi
       - run: flutter pub get
       - name: Build iOS, no codesign (compiles the Swift host API)
         working-directory: packages/attested_secure_keys/example

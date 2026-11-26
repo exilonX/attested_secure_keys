@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add Swift Package Manager support. The Swift sources and the privacy
+  manifest moved to `ios/attested_secure_keys_ios/Sources/attested_secure_keys_ios/`
+  next to a new `Package.swift`; the podspec points at the new location, so
+  CocoaPods keeps working. Requires Flutter 3.41 or later.
+- Ship the privacy manifest (`PrivacyInfo.xcprivacy`) with both Swift Package
+  Manager and CocoaPods.
 - Support `IosAccessibility.whenPasscodeSetThisDeviceOnly`
   (`kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly`). `generateKey` fails
   with `key_operation_failed` when no device passcode is set, before touching

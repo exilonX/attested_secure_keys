@@ -93,7 +93,8 @@ dev.flutter.pigeon.attested_secure_keys.AttestedSecureKeysApi.<method>
 `ByteArray` ⇄ `FlutterStandardTypedData`.
 
 Generated files (do not hand-edit): `lib/src/messages.g.dart`,
-`android/.../Messages.g.kt`, `ios/Classes/Messages.g.swift`.
+`android/.../Messages.g.kt`,
+`ios/attested_secure_keys_ios/Sources/attested_secure_keys_ios/Messages.g.swift`.
 
 ## 4. Runtime flows
 

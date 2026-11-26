@@ -12,8 +12,8 @@ topics:
   - secure-enclave
 
 environment:
-  sdk: ">=3.8.0 <4.0.0"
-  flutter: ">=3.27.0"
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
 
 resolution: workspace
 

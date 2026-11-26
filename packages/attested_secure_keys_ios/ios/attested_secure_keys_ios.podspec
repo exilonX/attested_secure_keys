@@ -13,7 +13,7 @@ Hardware-backed, attestable EC P-256 keys for Flutter: Android Keystore/StrongBo
   s.license          = { :type => 'Apache-2.0', :file => '../LICENSE' }
   s.author           = 'Ionel Merca'
   s.source           = { :path => '.' }
-  s.source_files = 'Classes/**/*'
+  s.source_files = 'attested_secure_keys_ios/Sources/attested_secure_keys_ios/**/*.swift'
   s.dependency 'Flutter'
   s.platform = :ios, '13.0'
 
@@ -21,9 +21,7 @@ Hardware-backed, attestable EC P-256 keys for Flutter: Android Keystore/StrongBo
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
   s.swift_version = '5.0'
 
-  # If your plugin requires a privacy manifest, for example if it uses any
-  # required reason APIs, update the PrivacyInfo.xcprivacy file to describe your
-  # plugin's privacy impact, and then uncomment this line. For more information,
-  # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
-  # s.resource_bundles = {'attested_secure_keys_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  # For more information on the privacy manifest, see
+  # https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
+  s.resource_bundles = {'attested_secure_keys_ios_privacy' => ['attested_secure_keys_ios/Sources/attested_secure_keys_ios/PrivacyInfo.xcprivacy']}
 end
