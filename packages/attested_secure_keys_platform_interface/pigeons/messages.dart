@@ -8,7 +8,7 @@
 // Generated files (do not edit by hand):
 //   - lib/src/messages.g.dart
 //   - android/src/main/kotlin/io/github/exilonx/attested_secure_keys/Messages.g.kt
-//   - ios/Classes/Messages.g.swift
+//   - ios/attested_secure_keys_ios/Sources/attested_secure_keys_ios/Messages.g.swift
 //
 // Wire types are prefixed `Pg` so they never collide with the hand-written,
 // ergonomic public model classes in `lib/src/`. All DTO <-> model mapping is
@@ -25,7 +25,8 @@ import 'package:pigeon/pigeon.dart';
     kotlinOptions: KotlinOptions(
       package: 'io.github.exilonx.attested_secure_keys',
     ),
-    swiftOut: '../attested_secure_keys_ios/ios/Classes/Messages.g.swift',
+    swiftOut:
+        '../attested_secure_keys_ios/ios/attested_secure_keys_ios/Sources/attested_secure_keys_ios/Messages.g.swift',
     swiftOptions: SwiftOptions(),
     dartPackageName: 'attested_secure_keys',
   ),
